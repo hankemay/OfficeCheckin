@@ -13,10 +13,10 @@ struct OfficeCheckinApp: App {
         .modelContainer(appDelegate.container)
         .commands { CommandGroup(after: .appInfo) { Button("Export Excel") { _ = try? ExportService.export() } } }
 
-        MenuBarExtra("Office Check-in", systemImage: appDelegate.service.isCheckedInToday ? "checkmark.circle.fill" : "circle") {
+        MenuBarExtra {
             MenuBarView()
                 .environmentObject(appDelegate.service)
-        }
+        } label: { Image("MenuBarIcon") }
         .menuBarExtraStyle(.window)
         .modelContainer(appDelegate.container)
     }

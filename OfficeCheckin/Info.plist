@@ -3,6 +3,7 @@
 <plist version="1.0"><dict>
   <key>CFBundleDisplayName</key><string>OfficeCheckin</string>
   <key>CFBundleIconName</key><string>AppIcon</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>com.local.officecheckin</string>
   <key>CFBundleName</key><string>OfficeCheckin</string>
   <key>CFBundlePackageType</key><string>APPL</string>

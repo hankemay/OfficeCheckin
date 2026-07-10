@@ -8,7 +8,14 @@ struct QuarterSummary: Identifiable {
     let weekCount: Int
 
     var id: Date { start }
-    var averagePerWeek: Double { Double(checkInCount) / Double(weekCount) }
+    /// Uses the same working-days ÷ 5 basis as the Dashboard metric.
+    var averagePerWeek: Double {
+        let calendar = Calendar.current
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: .now)) ?? .now
+        let through = min(end, tomorrow)
+        let elapsedWorkingDays = stride(from: start, to: through, by: 86_400).filter { !calendar.isDateInWeekend($0) }.count
+        return elapsedWorkingDays == 0 ? 0 : Double(checkInCount) / (Double(elapsedWorkingDays) / 5)
+    }
     var minimumCheckIns: Int { weekCount * 2 }
     var title: String { "Q\(((Calendar.current.component(.month, from: start) - 1) / 3) + 1) \(Calendar.current.component(.year, from: start))" }
 
