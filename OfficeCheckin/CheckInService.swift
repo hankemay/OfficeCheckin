@@ -42,8 +42,10 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     }
 
     func refresh() {
-        updateTodayStatus()
-        if isCheckedInToday {
+        let existing = todayCheckIn()
+        isCheckedInToday = existing != nil
+        // A manual/backfill result is provisional: a later automatic success replaces it.
+        if existing?.source == "wifi" {
             automaticStatus = .success
             statusText = "Checked in today"
             scheduleNextDay()
@@ -149,16 +151,20 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     }
 
     private func updateTodayStatus() {
-        guard let context else { return }
+        isCheckedInToday = todayCheckIn() != nil
+    }
+
+    private func todayCheckIn() -> CheckIn? {
+        guard let context else { return nil }
         let key = dayKey()
         let predicate = #Predicate<CheckIn> { $0.dayKey == key }
-        isCheckedInToday = (try? context.fetch(FetchDescriptor(predicate: predicate)).isEmpty == false) ?? false
+        return try? context.fetch(FetchDescriptor(predicate: predicate)).first
     }
 
     private func beginPolling() {
         timer?.invalidate(); timer = nil
         refresh()
-        guard !isCheckedInToday else { return }
+        guard todayCheckIn()?.source != "wifi" else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
         }
@@ -192,8 +198,18 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         guard let context else { return }
         let key = dayKey()
         let predicate = #Predicate<CheckIn> { $0.dayKey == key }
-        guard (try? context.fetch(FetchDescriptor(predicate: predicate)).isEmpty) != false else {
-            isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; return
+        if let existing = try? context.fetch(FetchDescriptor(predicate: predicate)).first {
+            // Preserve a real automatic result; replace provisional manual/backfill data.
+            guard existing.source != "wifi" else {
+                isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; scheduleNextDay(); return
+            }
+            existing.checkedInAt = .now
+            existing.ssid = ssid
+            existing.source = source
+            do {
+                try context.save(); isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; _ = try ExportService.export(from: context); scheduleNextDay()
+            } catch { automaticStatus = .warning; statusText = "Automatic check-in needs attention"; lastError = "Check-in failed: \(error.localizedDescription)" }
+            return
         }
         context.insert(CheckIn(dayKey: key, ssid: ssid, source: source))
         do {

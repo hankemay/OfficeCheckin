@@ -47,11 +47,16 @@ struct DashboardView: View {
         return nil
     }
     private var quarterHistory: [QuarterSummary] { QuarterSummary.all(from: checkins) }
-    private var operationsByDay: [String: OperationLog] {
-        operations.reduce(into: [:]) { result, operation in
-            let existingDate = result[operation.dayKey]?.performedAt ?? .distantPast
-            if existingDate < operation.performedAt { result[operation.dayKey] = operation }
+    private var calendarStates: [String: CalendarDayState] {
+        var events: [(date: Date, dayKey: String, state: CalendarDayState)] = []
+        for checkIn in checkins {
+            events.append((checkIn.checkedInAt, checkIn.dayKey, checkIn.source == "wifi" ? .checkedIn : .backfilled))
         }
+        for operation in operations {
+            let state: CalendarDayState = operation.action.hasPrefix("Removed") ? .removed : .backfilled
+            events.append((operation.performedAt, operation.dayKey, state))
+        }
+        return events.sorted { $0.date < $1.date }.reduce(into: [:]) { result, event in result[event.dayKey] = event.state }
     }
     private var recentOperations: [OperationLog] { operations.sorted { $0.performedAt > $1.performedAt }.prefix(10).map { $0 } }
 
@@ -75,10 +80,19 @@ struct DashboardView: View {
                 MetricCard(title: "Expected Check-in Days Remaining", value: "\(expectedDaysLeft)", valueColor: expectedDaysColor, note: expectedDaysNote)
                 MetricCard(title: "Avg / Week", value: String(format: "%.1f", weeklyAverage), valueColor: weeklyAverage <= 2 ? .red : .green)
             }
+            GroupBox("Automation") {
+                HStack {
+                    Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }
+                    Spacer()
+                }.padding(.vertical, 4)
+                DisclosureGroup("Target WiFi Settings for Check-in") {
+                    HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { saveTargetSSID() } }.padding(.top, 8)
+                }
+            }
             GroupBox {
                 calendarOverview.padding(.top, 4)
                 HStack(spacing: 12) {
-                    Label("Check-in", systemImage: "circle.fill").foregroundStyle(.green)
+                    Label("Automatic check-in", systemImage: "circle.fill").foregroundStyle(.green)
                     Label("Manual backfill / removal", systemImage: "circle.fill").foregroundStyle(.blue)
                 }.font(.caption).padding(.top, 8)
             } label: {
@@ -89,15 +103,6 @@ struct DashboardView: View {
                         ForEach(HeatRange.allCases) { Text($0.rawValue).tag($0) }
                     }
                     .labelsHidden().pickerStyle(.segmented).frame(width: 180)
-                }
-            }
-            GroupBox("Automation") {
-                HStack {
-                    Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }
-                    Spacer()
-                }.padding(.vertical, 4)
-                DisclosureGroup("Target WiFi Settings for Check-in") {
-                    HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { saveTargetSSID() } }.padding(.top, 8)
                 }
             }
             DisclosureGroup("Quarter History") {
@@ -164,17 +169,16 @@ struct DashboardView: View {
     }
 
     @ViewBuilder private var calendarOverview: some View {
-        let dates = Set(checkins.map(\.dayKey))
         switch heatRange {
         case .month:
-            MonthCalendar(interval: month, dates: dates, operations: operationsByDay, compact: false)
+            MonthCalendar(interval: month, states: calendarStates, compact: false)
         case .quarter:
             HStack(alignment: .top, spacing: 12) {
-                ForEach(monthIntervals(in: quarter), id: \.start) { MonthCalendar(interval: $0, dates: dates, operations: operationsByDay, compact: true) }
+                ForEach(monthIntervals(in: quarter), id: \.start) { MonthCalendar(interval: $0, states: calendarStates, compact: true) }
             }
         case .year:
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-                ForEach(monthIntervals(in: year), id: \.start) { MonthCalendar(interval: $0, dates: dates, operations: operationsByDay, compact: true) }
+                ForEach(monthIntervals(in: year), id: \.start) { MonthCalendar(interval: $0, states: calendarStates, compact: true) }
             }
         }
     }
@@ -190,6 +194,7 @@ struct DashboardView: View {
 }
 
 private enum HeatRange: String, CaseIterable, Identifiable { case month = "This Month", quarter = "This Quarter", year = "This Year"; var id: String { rawValue } }
+private enum CalendarDayState: Equatable { case checkedIn, backfilled, removed }
 private enum OfficeTheme { static let primary = Color(red: 0.14, green: 0.34, blue: 0.84); static let ink = Color(red: 0.08, green: 0.13, blue: 0.24); static let background = Color(red: 0.96, green: 0.97, blue: 0.99) }
 private struct MetricCard: View { let title: String; let value: String; var valueColor: Color = OfficeTheme.ink; var note: String? = nil; var body: some View { VStack(alignment: .leading, spacing: 6) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).foregroundStyle(valueColor).lineLimit(1).minimumScaleFactor(0.7); if let note { Text(note).font(.caption2).foregroundStyle(valueColor).lineLimit(2) } }.frame(maxWidth: .infinity, minHeight: 74, alignment: .leading).padding().background(.white, in: RoundedRectangle(cornerRadius: 12)).shadow(color: OfficeTheme.ink.opacity(0.06), radius: 8, y: 3) } }
 private struct StatusBadge: View {
@@ -212,7 +217,7 @@ private struct OperationRow: View {
     }
 }
 private struct MonthCalendar: View {
-    let interval: DateInterval; let dates: Set<String>; let operations: [String: OperationLog]; let compact: Bool
+    let interval: DateInterval; let states: [String: CalendarDayState]; let compact: Bool
     private let calendar = Calendar.current
     var body: some View {
         VStack(spacing: 7) {
@@ -226,14 +231,14 @@ private struct MonthCalendar: View {
                 ForEach(Array(slots.enumerated()), id: \.offset) { _, day in
                     if let day {
                         let key = day.formatted(.iso8601.year().month().day())
-                        let checked = dates.contains(key), operation = operations[key]
-                        let operationLabel = operation?.action.hasPrefix("Added") == true ? "B" : operation == nil ? "" : "R"
-                        let color: Color = operation == nil ? (checked ? .green : .gray.opacity(0.22)) : .blue
+                        let state = states[key]
+                        let operationLabel = state == .backfilled ? "B" : state == .removed ? "R" : ""
+                        let color: Color = state == .checkedIn ? .green : state == nil ? .gray.opacity(0.22) : .blue
                         VStack(spacing: compact ? 1 : 3) {
                             HStack(spacing: 2) { Text(day.formatted(.dateTime.day())).font(compact ? .caption2 : .caption); if !operationLabel.isEmpty { Text(operationLabel).font(.system(size: compact ? 7 : 9, weight: .bold)).foregroundStyle(.blue) } }
                             Circle().fill(color).frame(width: compact ? 5 : 6, height: compact ? 5 : 6)
                         }
-                            .frame(maxWidth: .infinity, minHeight: compact ? 25 : 38).background(operation == nil ? (checked ? Color.green.opacity(0.12) : .white) : Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: compact ? 4 : 6))
+                            .frame(maxWidth: .infinity, minHeight: compact ? 25 : 38).background(state == .checkedIn ? Color.green.opacity(0.12) : state == nil ? .white : Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: compact ? 4 : 6))
                     } else { Color.clear.frame(maxWidth: .infinity, minHeight: compact ? 25 : 38) }
                 }
             }
