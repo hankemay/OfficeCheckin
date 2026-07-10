@@ -81,12 +81,11 @@ struct DashboardView: View {
                         }
                         Divider().frame(height: 18)
                         Toggle("Launch at Login", isOn: $launchAtLogin).toggleStyle(.checkbox).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }
-                        Toggle("Auto-export stats to Excel", isOn: $autoExportEnabled).toggleStyle(.checkbox)
+                        Toggle("Auto Export Stats to Excel", isOn: $autoExportEnabled).toggleStyle(.checkbox)
                     }
                 }
                 Spacer()
                 StatusBadge(status: service.automaticStatus, text: service.statusText)
-                Button("Export Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary)
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
                 MetricCard(title: "Today", value: service.isCheckedInToday ? "Checked in" : "Not checked in today", valueColor: service.isCheckedInToday ? .green : .yellow)
@@ -126,10 +125,10 @@ struct DashboardView: View {
                     HStack {
                         DatePicker("Past date", selection: $backfillDate, in: ...Date.now, displayedComponents: .date)
                         Spacer()
-                        Button("Add Check-in") { service.backfill(date: backfillDate) }
-                        Button("Remove Check-in", role: .destructive) { showingRemoveConfirmation = true }
+                        Button("Add Check-in") { service.backfill(date: backfillDate) }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary)
+                        Button("Remove Check-in") { showingRemoveConfirmation = true }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary)
                     }
-                    Button("Export Check-in Status to Excel") { exportAndReveal() }
+                    Button("Export Check-in Status to Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary)
                     if !recentOperations.isEmpty {
                         Divider()
                         Text("Recent Operations").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
