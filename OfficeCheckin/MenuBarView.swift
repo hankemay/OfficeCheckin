@@ -11,7 +11,7 @@ struct MenuBarView: View {
             Text("Wi‑Fi：\(service.currentWiFi)").foregroundStyle(.secondary)
             Divider()
             Button("立即打卡") { service.manualCheckIn() }
-            Button("立即导出 Excel") { ExportService.export(from: context) }
+            Button("立即导出 Excel") { do { NSWorkspace.shared.activateFileViewerSelecting([try ExportService.export(from: context)]) } catch { service.report(error) } }
             Button("刷新 Wi‑Fi") { service.refresh() }
             Divider()
             Button("退出 OfficeCheckin") { NSApplication.shared.terminate(nil) }

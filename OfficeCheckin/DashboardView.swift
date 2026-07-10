@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SwiftData
 
@@ -19,7 +20,7 @@ struct DashboardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HStack { VStack(alignment: .leading) { Text("Office Check-in").font(.largeTitle.bold()); Text("仅在本机保存") .foregroundStyle(.secondary) }; Spacer(); Button("立即导出 Excel") { ExportService.export(from: context) } }
+            HStack { VStack(alignment: .leading) { Text("Office Check-in").font(.largeTitle.bold()); Text("仅在本机保存") .foregroundStyle(.secondary) }; Spacer(); Button("立即导出 Excel") { exportAndReveal() } }
             HStack(spacing: 14) {
                 MetricCard(title: "Today", value: service.isCheckedInToday ? "✓ 已打卡" : "未打卡")
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
@@ -34,7 +35,25 @@ struct DashboardView: View {
         .padding(26).frame(minWidth: 850, minHeight: 470)
         .onAppear { editingSSID = storedSSID; service.start(using: context) }
     }
+
+    private func exportAndReveal() {
+        do { NSWorkspace.shared.activateFileViewerSelecting([try ExportService.export(from: context)]) }
+        catch { service.report(error) }
+    }
 }
 
 private struct MetricCard: View { let title: String; let value: String; var body: some View { VStack(alignment: .leading, spacing: 8) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).lineLimit(1).minimumScaleFactor(0.7) }.frame(maxWidth: .infinity, alignment: .leading).padding().background(.quaternary, in: RoundedRectangle(cornerRadius: 12)) } }
-private struct HeatMap: View { let dates: Set<String>; let interval: DateInterval; private let calendar = Calendar.current; var body: some View { LazyVGrid(columns: Array(repeating: GridItem(.fixed(14), spacing: 5), count: 13), spacing: 5) { ForEach(Array(days.enumerated()), id: \.offset) { _, day in RoundedRectangle(cornerRadius: 3).fill(dates.contains(day.formatted(.iso8601.year().month().day())) ? .green : .gray.opacity(0.15)).frame(width: 14, height: 14).help(day.formatted(date: .abbreviated, time: .omitted)) } } } private var days: [Date] { stride(from: interval.start, to: interval.end, by: 86_400).map { $0 } } }
+private struct HeatMap: View {
+    let dates: Set<String>; let interval: DateInterval
+    var body: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
+            ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { Text($0).font(.caption2).foregroundStyle(.secondary) }
+            ForEach(Array(days.enumerated()), id: \.offset) { _, day in
+                let checked = dates.contains(day.formatted(.iso8601.year().month().day()))
+                VStack(spacing: 1) { Text(day.formatted(.dateTime.month().day())).font(.caption2); Circle().fill(checked ? .green : .gray.opacity(0.25)).frame(width: 8, height: 8) }
+                    .frame(maxWidth: .infinity, minHeight: 30).padding(.vertical, 2).background(checked ? Color.green.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 4))
+            }
+        }
+    }
+    private var days: [Date] { stride(from: interval.start, to: interval.end, by: 86_400).map { $0 } }
+}

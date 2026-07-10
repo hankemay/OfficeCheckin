@@ -7,17 +7,18 @@ enum ExportService {
         return base.appending(path: "OfficeCheckin/exports", directoryHint: .isDirectory)
     }
 
-    static func export(from context: ModelContext? = nil) {
+    @discardableResult
+    static func export(from context: ModelContext? = nil) throws -> URL {
         let modelContext: ModelContext
         if let context { modelContext = context }
         else if let container = try? ModelContainer(for: CheckIn.self) { modelContext = ModelContext(container) }
-        else { return }
-        let data = (try? modelContext.fetch(FetchDescriptor<CheckIn>(sortBy: [SortDescriptor(\.dayKey)]))) ?? []
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        else { throw ExportError.databaseUnavailable }
+        let data = try modelContext.fetch(FetchDescriptor<CheckIn>(sortBy: [SortDescriptor(\.dayKey)]))
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let latest = directory.appending(path: "OfficeCheckin_Latest.xlsx")
         if FileManager.default.fileExists(atPath: latest.path()) {
             let name = "OfficeCheckin_\(Date.now.formatted(.dateTime.year().month().day().hour().minute().second())).xlsx".replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
-            try? FileManager.default.copyItem(at: latest, to: directory.appending(path: name))
+            try FileManager.default.copyItem(at: latest, to: directory.appending(path: name))
         }
         let sheetRows = data.enumerated().map { index, item in
             "<row r=\"\(index + 2)\"><c r=\"A\(index + 2)\" t=\"inlineStr\"><is><t>\(item.dayKey.xml)</t></is></c><c r=\"B\(index + 2)\" t=\"inlineStr\"><is><t>\(item.checkedInAt.formatted(date: .numeric, time: .standard).xml)</t></is></c><c r=\"C\(index + 2)\" t=\"inlineStr\"><is><t>\(item.ssid.xml)</t></is></c></row>"
@@ -30,11 +31,14 @@ enum ExportService {
             "xl/_rels/workbook.xml.rels": "<?xml version=\"1.0\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>",
             "xl/worksheets/sheet1.xml": sheet
         ]
-        try? SimpleZip.write(parts, to: latest)
-        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey]))?.filter { $0.lastPathComponent.starts(with: "OfficeCheckin_") && $0.lastPathComponent != "OfficeCheckin_Latest.xlsx" }.sorted { $0.contentModificationDate < $1.contentModificationDate } ?? []
-        for old in files.dropLast(2) { try? FileManager.default.removeItem(at: old) }
+        try SimpleZip.write(parts, to: latest)
+        let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey]).filter { $0.lastPathComponent.starts(with: "OfficeCheckin_") && $0.lastPathComponent != "OfficeCheckin_Latest.xlsx" }.sorted { $0.contentModificationDate < $1.contentModificationDate }
+        for old in files.dropLast(2) { try FileManager.default.removeItem(at: old) }
+        return latest
     }
 }
+
+enum ExportError: LocalizedError { case databaseUnavailable; var errorDescription: String? { "无法读取本地打卡数据库" } }
 
 private extension URL { var contentModificationDate: Date { (try? resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast } }
 private extension String { var xml: String { replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;") } }

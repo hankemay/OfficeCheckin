@@ -21,7 +21,7 @@ struct OfficeCheckinApp: App {
                 .environmentObject(service)
         }
         .modelContainer(container)
-        .commands { CommandGroup(after: .appInfo) { Button("立即导出 Excel") { ExportService.export() } } }
+        .commands { CommandGroup(after: .appInfo) { Button("立即导出 Excel") { _ = try? ExportService.export() } } }
 
         MenuBarExtra("Office Check-in", systemImage: service.isCheckedInToday ? "checkmark.circle.fill" : "circle") {
             MenuBarView()

@@ -11,6 +11,7 @@
   A011 /* SwiftData.framework */ = {isa = PBXBuildFile; fileRef = A111; };
   A012 /* CoreWLAN.framework */ = {isa = PBXBuildFile; fileRef = A112; };
   A013 /* ServiceManagement.framework */ = {isa = PBXBuildFile; fileRef = A113; };
+  A014 /* CoreLocation.framework */ = {isa = PBXBuildFile; fileRef = A114; };
 /* End PBXBuildFile section */
 /* Begin PBXFileReference section */
   A100 /* OfficeCheckin.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = OfficeCheckin.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -25,14 +26,15 @@
   A111 /* SwiftData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftData.framework; path = System/Library/Frameworks/SwiftData.framework; sourceTree = SDKROOT; };
   A112 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
   A113 /* ServiceManagement.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ServiceManagement.framework; path = System/Library/Frameworks/ServiceManagement.framework; sourceTree = SDKROOT; };
+  A114 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 /* Begin PBXFrameworksBuildPhase section */
-  A200 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A010, A011, A012, A013); runOnlyForDeploymentPostprocessing = 0; };
+  A200 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A010, A011, A012, A013, A014); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 /* Begin PBXGroup section */
   A300 = {isa = PBXGroup; children = (A301, A302, A303); sourceTree = "<group>"; };
   A301 = {isa = PBXGroup; path = OfficeCheckin; sourceTree = "<group>"; children = (A101, A102, A103, A104, A105, A106, A107); };
-  A302 = {isa = PBXGroup; name = Frameworks; sourceTree = "<group>"; children = (A110, A111, A112, A113); };
+  A302 = {isa = PBXGroup; name = Frameworks; sourceTree = "<group>"; children = (A110, A111, A112, A113, A114); };
   A303 = {isa = PBXGroup; name = Products; sourceTree = "<group>"; children = (A100); };
 /* End PBXGroup section */
 /* Begin PBXNativeTarget section */
