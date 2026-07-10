@@ -50,7 +50,13 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         wifiHint = ssid == nil ? "Allow Location access and keep App Sandbox disabled to read the Wi-Fi name." : nil
         updateTodayStatus()
         if isCheckedInToday { automaticStatus = .success; statusText = "Checked in today"; return }
-        guard let ssid, ssid == targetSSID else { automaticStatus = .waiting; statusText = "Waiting for \(targetSSID)"; return }
+        guard let ssid else { automaticStatus = .waiting; statusText = "Waiting for \(targetSSID)"; return }
+        guard ssidMatches(ssid, targetSSID) else {
+            automaticStatus = .waiting
+            statusText = "Connected to \(ssid), but target is \(targetSSID)"
+            wifiHint = "The Wi-Fi name must match the Target WiFi setting. Update it if the detected name is correct."
+            return
+        }
         checkIn(ssid: ssid, source: "wifi")
     }
 
@@ -118,6 +124,11 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         // CoreWLAN remains a useful fallback after location access is approved.
         if let interface = CWWiFiClient.shared().interface(), let ssid = try? interface.ssid() { return ssid }
         return nil
+    }
+
+    private func ssidMatches(_ actual: String, _ target: String) -> Bool {
+        actual.trimmingCharacters(in: .whitespacesAndNewlines)
+            .localizedCaseInsensitiveCompare(target.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame
     }
 
     private func command(_ path: String, _ arguments: [String]) -> String {
