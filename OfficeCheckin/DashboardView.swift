@@ -125,10 +125,10 @@ struct DashboardView: View {
                     HStack {
                         DatePicker("Past date", selection: $backfillDate, in: ...Date.now, displayedComponents: .date)
                         Spacer()
-                        Button("Add Check-in") { service.backfill(date: backfillDate) }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary)
-                        Button("Remove Check-in") { showingRemoveConfirmation = true }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary)
+                        Button("Add Check-in") { service.backfill(date: backfillDate) }.buttonStyle(.borderedProminent).tint(OfficeTheme.action)
+                        Button("Remove Check-in") { showingRemoveConfirmation = true }.buttonStyle(.borderedProminent).tint(OfficeTheme.action)
                     }
-                    Button("Export Check-in Status to Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary)
+                    Button("Export Check-in Status to Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.action)
                     if !recentOperations.isEmpty {
                         Divider()
                         Text("Recent Operations").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -211,7 +211,7 @@ struct DashboardView: View {
 
 private enum HeatRange: String, CaseIterable, Identifiable { case month = "This Month", quarter = "This Quarter", year = "This Year"; var id: String { rawValue } }
 private enum CalendarDayState: Equatable { case checkedIn, backfilled, removed }
-private enum OfficeTheme { static let primary = Color(red: 0.14, green: 0.34, blue: 0.84); static let ink = Color(red: 0.08, green: 0.13, blue: 0.24); static let background = Color(red: 0.96, green: 0.97, blue: 0.99) }
+private enum OfficeTheme { static let primary = Color(red: 0.14, green: 0.34, blue: 0.84); static let action = Color(red: 0.31, green: 0.43, blue: 0.63); static let ink = Color(red: 0.08, green: 0.13, blue: 0.24); static let background = Color(red: 0.96, green: 0.97, blue: 0.99) }
 private struct MetricCard: View { let title: String; let value: String; var valueColor: Color = OfficeTheme.ink; var note: String? = nil; var body: some View { VStack(alignment: .leading, spacing: 6) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).foregroundStyle(valueColor).lineLimit(1).minimumScaleFactor(0.7); if let note { Text(note).font(.caption2).foregroundStyle(valueColor).lineLimit(2) } }.frame(maxWidth: .infinity, minHeight: 74, alignment: .leading).padding().background(.white, in: RoundedRectangle(cornerRadius: 12)).shadow(color: OfficeTheme.ink.opacity(0.06), radius: 8, y: 3) } }
 private struct StatusBadge: View {
     let status: CheckInService.AutomaticStatus; let text: String
