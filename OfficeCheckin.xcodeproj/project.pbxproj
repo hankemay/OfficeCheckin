@@ -1,0 +1,57 @@
+// !$*UTF8*$!
+{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+/* Begin PBXBuildFile section */
+  A001 /* OfficeCheckinApp.swift */ = {isa = PBXBuildFile; fileRef = A101; };
+  A002 /* CheckIn.swift */ = {isa = PBXBuildFile; fileRef = A102; };
+  A003 /* CheckInService.swift */ = {isa = PBXBuildFile; fileRef = A103; };
+  A004 /* DashboardView.swift */ = {isa = PBXBuildFile; fileRef = A104; };
+  A005 /* MenuBarView.swift */ = {isa = PBXBuildFile; fileRef = A105; };
+  A006 /* ExportService.swift */ = {isa = PBXBuildFile; fileRef = A106; };
+  A010 /* SwiftUI.framework */ = {isa = PBXBuildFile; fileRef = A110; };
+  A011 /* SwiftData.framework */ = {isa = PBXBuildFile; fileRef = A111; };
+  A012 /* CoreWLAN.framework */ = {isa = PBXBuildFile; fileRef = A112; };
+  A013 /* ServiceManagement.framework */ = {isa = PBXBuildFile; fileRef = A113; };
+/* End PBXBuildFile section */
+/* Begin PBXFileReference section */
+  A100 /* OfficeCheckin.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = OfficeCheckin.app; sourceTree = BUILT_PRODUCTS_DIR; };
+  A101 /* OfficeCheckinApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfficeCheckinApp.swift; sourceTree = "<group>"; };
+  A102 /* CheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckIn.swift; sourceTree = "<group>"; };
+  A103 /* CheckInService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckInService.swift; sourceTree = "<group>"; };
+  A104 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+  A105 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+  A106 /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
+  A107 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+  A110 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+  A111 /* SwiftData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftData.framework; path = System/Library/Frameworks/SwiftData.framework; sourceTree = SDKROOT; };
+  A112 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
+  A113 /* ServiceManagement.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ServiceManagement.framework; path = System/Library/Frameworks/ServiceManagement.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+/* Begin PBXFrameworksBuildPhase section */
+  A200 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A010, A011, A012, A013); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+/* Begin PBXGroup section */
+  A300 = {isa = PBXGroup; children = (A301, A302, A303); sourceTree = "<group>"; };
+  A301 = {isa = PBXGroup; path = OfficeCheckin; sourceTree = "<group>"; children = (A101, A102, A103, A104, A105, A106, A107); };
+  A302 = {isa = PBXGroup; name = Frameworks; sourceTree = "<group>"; children = (A110, A111, A112, A113); };
+  A303 = {isa = PBXGroup; name = Products; sourceTree = "<group>"; children = (A100); };
+/* End PBXGroup section */
+/* Begin PBXNativeTarget section */
+  A400 = {isa = PBXNativeTarget; buildConfigurationList = A500; buildPhases = (A200, A201); buildRules = (); dependencies = (); name = OfficeCheckin; productName = OfficeCheckin; productReference = A100; productType = "com.apple.product-type.application"; };
+/* End PBXNativeTarget section */
+/* Begin PBXProject section */
+  A600 = {isa = PBXProject; attributes = {LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = {A400 = {CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = A601; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A300; productRefGroup = A303; projectDirPath = ""; projectRoot = ""; targets = (A400); };
+/* End PBXProject section */
+/* Begin PBXResourcesBuildPhase section */
+  A201 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A001, A002, A003, A004, A005, A006); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+/* Begin XCBuildConfiguration section */
+  A700 = {isa = XCBuildConfiguration; buildSettings = {MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; }; name = Debug; };
+  A701 = {isa = XCBuildConfiguration; buildSettings = {MACOSX_DEPLOYMENT_TARGET = 14.0; SDKROOT = macosx; }; name = Release; };
+  A702 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; INFOPLIST_FILE = OfficeCheckin/Info.plist; MACOSX_DEPLOYMENT_TARGET = 14.0; PRODUCT_BUNDLE_IDENTIFIER = com.local.officecheckin; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = macosx; SWIFT_VERSION = 5.0; }; name = Debug; };
+  A703 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = ""; INFOPLIST_FILE = OfficeCheckin/Info.plist; MACOSX_DEPLOYMENT_TARGET = 14.0; PRODUCT_BUNDLE_IDENTIFIER = com.local.officecheckin; PRODUCT_NAME = "$(TARGET_NAME)"; SDKROOT = macosx; SWIFT_COMPILATION_MODE = wholemodule; SWIFT_VERSION = 5.0; }; name = Release; };
+/* End XCBuildConfiguration section */
+/* Begin XCConfigurationList section */
+  A500 = {isa = XCConfigurationList; buildConfigurations = (A702, A703); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+  A601 = {isa = XCConfigurationList; buildConfigurations = (A700, A701); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+}; rootObject = A600; }
