@@ -16,6 +16,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     @Published var lastError: String?
 
     private var timer: Timer?
+    private var automaticResumeAfter: Date?
     private var context: ModelContext?
     private let locationManager = CLLocationManager()
     static let targetKey = "targetSSID"
@@ -44,6 +45,12 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     }
 
     func refresh() {
+        if let automaticResumeAfter, automaticResumeAfter > .now {
+            automaticStatus = .waiting
+            statusText = "Automatic check-in resumes in \(max(1, Int(automaticResumeAfter.timeIntervalSinceNow.rounded(.up)))) seconds"
+            return
+        }
+        automaticResumeAfter = nil
         let existing = todayCheckIn()
         isCheckedInToday = existing != nil
         // A manual/backfill result is provisional: a later automatic success replaces it.
@@ -89,7 +96,14 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         guard let existing = try? context.fetch(FetchDescriptor(predicate: predicate)).first else { lastError = "There is no check-in for this date."; return }
         context.delete(existing)
         context.insert(OperationLog(action: "Removed check-in", dayKey: key))
-        do { try context.save(); _ = try ExportService.export(from: context); _ = try ExportService.exportOperations(from: context); refresh(); lastError = nil }
+        do {
+            try context.save(); _ = try ExportService.export(from: context); _ = try ExportService.exportOperations(from: context)
+            if key == dayKey() {
+                isCheckedInToday = false
+                pauseAutomaticCheckInAfterRemoval()
+            }
+            lastError = nil
+        }
         catch { lastError = "Removal failed: \(error.localizedDescription)" }
     }
 
@@ -169,6 +183,16 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         guard todayCheckIn()?.source != "wifi" else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
+        }
+    }
+
+    private func pauseAutomaticCheckInAfterRemoval() {
+        timer?.invalidate()
+        automaticResumeAfter = .now.addingTimeInterval(30)
+        automaticStatus = .waiting
+        statusText = "Automatic check-in resumes in 30 seconds"
+        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.beginPolling() }
         }
     }
 
