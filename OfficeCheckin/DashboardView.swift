@@ -31,7 +31,10 @@ struct DashboardView: View {
                 MetricCard(title: "Avg / Week", value: String(format: "%.1f", weeklyAverage))
             }
             GroupBox {
-                HeatMap(dates: Set(checkins.map(\.dayKey)), interval: heatInterval).padding(.top, 4)
+                ScrollView(.vertical, showsIndicators: heatRange == .quarter) {
+                    HeatMap(dates: Set(checkins.map(\.dayKey)), interval: heatInterval).padding(.top, 4)
+                }
+                .frame(maxHeight: heatRange == .month ? 280 : 300)
             } label: {
                 HStack {
                     Text("Heat Map（按周）")
@@ -64,15 +67,17 @@ private struct MetricCard: View { let title: String; let value: String; var body
 private struct HeatMap: View {
     let dates: Set<String>; let interval: DateInterval
     var body: some View {
-        HStack(alignment: .top, spacing: 5) {
-            VStack(spacing: 6) { ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { Text($0).font(.caption2).foregroundStyle(.secondary).frame(height: 30) } }
-            LazyHGrid(rows: Array(repeating: GridItem(.fixed(30), spacing: 6), count: 7), spacing: 6) {
+        VStack(spacing: 7) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 7), spacing: 7) {
+                ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { Text($0).font(.caption2.weight(.medium)).foregroundStyle(.secondary).frame(maxWidth: .infinity) }
+            }
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 7), spacing: 7) {
                 ForEach(Array(slots.enumerated()), id: \.offset) { _, day in
                     if let day {
                         let checked = dates.contains(day.formatted(.iso8601.year().month().day()))
-                        VStack(spacing: 1) { Text(day.formatted(.dateTime.month().day())).font(.caption2); Circle().fill(checked ? OfficeTheme.primary : .gray.opacity(0.25)).frame(width: 7, height: 7) }
-                            .frame(width: 43, height: 30).background(checked ? OfficeTheme.primary.opacity(0.12) : .white, in: RoundedRectangle(cornerRadius: 5))
-                    } else { Color.clear.frame(width: 43, height: 30) }
+                        VStack(spacing: 3) { Text(day.formatted(.dateTime.month().day())).font(.caption2); Circle().fill(checked ? OfficeTheme.primary : .gray.opacity(0.22)).frame(width: 6, height: 6) }
+                            .frame(maxWidth: .infinity, minHeight: 38).background(checked ? OfficeTheme.primary.opacity(0.12) : .white, in: RoundedRectangle(cornerRadius: 6))
+                    } else { Color.clear.frame(maxWidth: .infinity, minHeight: 38) }
                 }
             }
         }
