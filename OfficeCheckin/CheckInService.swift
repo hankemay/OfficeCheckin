@@ -8,6 +8,7 @@ import SwiftData
 @MainActor
 final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var currentWiFi = "正在检测…"
+    @Published private(set) var wifiHint: String?
     @Published private(set) var isCheckedInToday = false
     @Published var lastError: String?
 
@@ -41,6 +42,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     func refresh() {
         let ssid = wifiName()
         currentWiFi = ssid ?? "未连接"
+        wifiHint = ssid == nil ? "请确认已允许位置权限；也请在 Xcode 的 Signing & Capabilities 中保持 App Sandbox 关闭。" : nil
         updateTodayStatus()
         guard let ssid, ssid == targetSSID else { return }
         checkIn(ssid: ssid, source: "wifi")
@@ -69,9 +71,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     }
 
     private func wifiName() -> String? {
-        if let interface = CWWiFiClient.shared().interface(), let ssid = try? interface.ssid() { return ssid }
-        // CoreWLAN can return nil until location access is approved. Use the built-in
-        // network utility as a second, non-private API source in non-sandboxed builds.
+        // Prefer the built-in network utility; it is more reliable for a developer-signed app.
         let ports = command("/usr/sbin/networksetup", ["-listallhardwareports"]).components(separatedBy: .newlines)
         for (index, line) in ports.enumerated() where line.contains("Hardware Port: Wi-Fi") {
             guard let deviceLine = ports.dropFirst(index + 1).first(where: { $0.hasPrefix("Device:") }) else { continue }
@@ -80,6 +80,8 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
             let prefix = "Current Wi-Fi Network: "
             if answer.hasPrefix(prefix) { return String(answer.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines) }
         }
+        // CoreWLAN remains a useful fallback after location access is approved.
+        if let interface = CWWiFiClient.shared().interface(), let ssid = try? interface.ssid() { return ssid }
         return nil
     }
 

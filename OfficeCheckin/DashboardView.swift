@@ -20,7 +20,7 @@ struct DashboardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HStack { VStack(alignment: .leading) { Text("Office Check-in").font(.largeTitle.bold()); Text("仅在本机保存") .foregroundStyle(.secondary) }; Spacer(); Button("立即导出 Excel") { exportAndReveal() } }
+            HStack { VStack(alignment: .leading) { Text("Office Check-in").font(.largeTitle.bold()).foregroundStyle(OfficeTheme.ink); Text("仅在本机保存") .foregroundStyle(.secondary) }; Spacer(); Button("立即导出 Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary) }
             HStack(spacing: 14) {
                 MetricCard(title: "Today", value: service.isCheckedInToday ? "✓ 已打卡" : "未打卡")
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
@@ -29,10 +29,12 @@ struct DashboardView: View {
             }
             GroupBox("Heat Map（当前季度）") { HeatMap(dates: Set(quarterCheckins.map(\.dayKey)), interval: quarter).padding(.vertical, 4) }
             GroupBox("设置") { HStack { Text("指定 WiFi"); TextField("SSID", text: $editingSSID).frame(width: 220); Button("保存") { service.saveTargetSSID(editingSSID); storedSSID = editingSSID }; Toggle("登录时启动", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }; Spacer(); Button("立即打卡") { service.manualCheckIn() } }.padding(.vertical, 4) }
+            if let hint = service.wifiHint { Label(hint, systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(OfficeTheme.primary) }
             if let error = service.lastError { Text(error).foregroundStyle(.red) }
             Spacer()
         }
-        .padding(26).frame(minWidth: 850, minHeight: 470)
+        .padding(26).frame(minWidth: 820, minHeight: 430)
+        .background(LinearGradient(colors: [OfficeTheme.background, OfficeTheme.background.opacity(0.72), .white], startPoint: .topLeading, endPoint: .bottomTrailing))
         .onAppear { editingSSID = storedSSID; service.start(using: context) }
     }
 
@@ -42,18 +44,24 @@ struct DashboardView: View {
     }
 }
 
-private struct MetricCard: View { let title: String; let value: String; var body: some View { VStack(alignment: .leading, spacing: 8) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).lineLimit(1).minimumScaleFactor(0.7) }.frame(maxWidth: .infinity, alignment: .leading).padding().background(.quaternary, in: RoundedRectangle(cornerRadius: 12)) } }
+private enum OfficeTheme { static let primary = Color(red: 0.46, green: 0.34, blue: 0.70); static let ink = Color(red: 0.22, green: 0.16, blue: 0.34); static let background = Color(red: 0.95, green: 0.93, blue: 0.99) }
+private struct MetricCard: View { let title: String; let value: String; var body: some View { VStack(alignment: .leading, spacing: 8) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).foregroundStyle(OfficeTheme.ink).lineLimit(1).minimumScaleFactor(0.7) }.frame(maxWidth: .infinity, alignment: .leading).padding().background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 12)).shadow(color: OfficeTheme.primary.opacity(0.10), radius: 8, y: 3) } }
 private struct HeatMap: View {
     let dates: Set<String>; let interval: DateInterval
     var body: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 6) {
-            ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { Text($0).font(.caption2).foregroundStyle(.secondary) }
-            ForEach(Array(days.enumerated()), id: \.offset) { _, day in
-                let checked = dates.contains(day.formatted(.iso8601.year().month().day()))
-                VStack(spacing: 1) { Text(day.formatted(.dateTime.month().day())).font(.caption2); Circle().fill(checked ? .green : .gray.opacity(0.25)).frame(width: 8, height: 8) }
-                    .frame(maxWidth: .infinity, minHeight: 30).padding(.vertical, 2).background(checked ? Color.green.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 4))
+        HStack(alignment: .top, spacing: 5) {
+            VStack(spacing: 6) { ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { Text($0).font(.caption2).foregroundStyle(.secondary).frame(height: 30) } }
+            LazyHGrid(rows: Array(repeating: GridItem(.fixed(30), spacing: 6), count: 7), spacing: 6) {
+                ForEach(Array(slots.enumerated()), id: \.offset) { _, day in
+                    if let day {
+                        let checked = dates.contains(day.formatted(.iso8601.year().month().day()))
+                        VStack(spacing: 1) { Text(day.formatted(.dateTime.month().day())).font(.caption2); Circle().fill(checked ? OfficeTheme.primary : .gray.opacity(0.25)).frame(width: 7, height: 7) }
+                            .frame(width: 43, height: 30).background(checked ? OfficeTheme.primary.opacity(0.13) : .white.opacity(0.40), in: RoundedRectangle(cornerRadius: 5))
+                    } else { Color.clear.frame(width: 43, height: 30) }
+                }
             }
         }
     }
     private var days: [Date] { stride(from: interval.start, to: interval.end, by: 86_400).map { $0 } }
+    private var slots: [Date?] { Array(repeating: nil, count: Calendar.current.component(.weekday, from: interval.start) - 1) + days.map(Optional.some) }
 }
