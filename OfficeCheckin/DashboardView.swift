@@ -100,7 +100,7 @@ struct DashboardView: View {
         .confirmationDialog("Remove this check-in?", isPresented: $showingRemoveConfirmation, titleVisibility: .visible) {
             Button("Remove Check-in", role: .destructive) { service.removeCheckIn(date: backfillDate) }
         } message: { Text("This action will be recorded in the operations audit file.") }
-        .onAppear { editingSSID = storedSSID; service.start(using: context); launchAtLogin = service.launchAtLoginEnabled }
+        .onAppear { editingSSID = storedSSID; launchAtLogin = service.launchAtLoginEnabled }
     }
 
     private func exportAndReveal() {

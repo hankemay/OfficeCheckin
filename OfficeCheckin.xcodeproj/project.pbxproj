@@ -8,6 +8,7 @@
   A005 /* MenuBarView.swift */ = {isa = PBXBuildFile; fileRef = A105; };
   A006 /* ExportService.swift */ = {isa = PBXBuildFile; fileRef = A106; };
   A007 /* QuarterSummary.swift */ = {isa = PBXBuildFile; fileRef = A109; };
+  A008 /* AppDelegate.swift */ = {isa = PBXBuildFile; fileRef = A115; };
   A010 /* SwiftUI.framework */ = {isa = PBXBuildFile; fileRef = A110; };
   A011 /* SwiftData.framework */ = {isa = PBXBuildFile; fileRef = A111; };
   A012 /* CoreWLAN.framework */ = {isa = PBXBuildFile; fileRef = A112; };
@@ -31,13 +32,14 @@
   A112 /* CoreWLAN.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreWLAN.framework; path = System/Library/Frameworks/CoreWLAN.framework; sourceTree = SDKROOT; };
   A113 /* ServiceManagement.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ServiceManagement.framework; path = System/Library/Frameworks/ServiceManagement.framework; sourceTree = SDKROOT; };
   A114 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
+  A115 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 /* Begin PBXFrameworksBuildPhase section */
   A200 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A010, A011, A012, A013, A014); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 /* Begin PBXGroup section */
   A300 = {isa = PBXGroup; children = (A301, A302, A303); sourceTree = "<group>"; };
-  A301 = {isa = PBXGroup; path = OfficeCheckin; sourceTree = "<group>"; children = (A101, A102, A103, A104, A105, A106, A109, A107, A108); };
+  A301 = {isa = PBXGroup; path = OfficeCheckin; sourceTree = "<group>"; children = (A101, A115, A102, A103, A104, A105, A106, A109, A107, A108); };
   A302 = {isa = PBXGroup; name = Frameworks; sourceTree = "<group>"; children = (A110, A111, A112, A113, A114); };
   A303 = {isa = PBXGroup; name = Products; sourceTree = "<group>"; children = (A100); };
 /* End PBXGroup section */
@@ -48,7 +50,7 @@
   A600 = {isa = PBXProject; attributes = {LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = {A400 = {CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = A601; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = A300; productRefGroup = A303; projectDirPath = ""; projectRoot = ""; targets = (A400); };
 /* End PBXProject section */
 /* Begin PBXResourcesBuildPhase section */
-  A201 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A001, A002, A003, A004, A005, A006, A007); runOnlyForDeploymentPostprocessing = 0; };
+  A201 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A001, A008, A002, A003, A004, A005, A006, A007); runOnlyForDeploymentPostprocessing = 0; };
   A202 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A015); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 /* Begin XCBuildConfiguration section */
