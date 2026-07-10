@@ -11,6 +11,7 @@ struct DashboardView: View {
     @State private var launchAtLogin = false
     @State private var heatRange: HeatRange = .month
     @State private var backfillDate = Calendar.current.date(byAdding: .day, value: -1, to: .now) ?? .now
+    @State private var showingRemoveConfirmation = false
 
     private var quarter: DateInterval { Calendar.current.dateInterval(of: .quarter, for: .now)! }
     private var month: DateInterval { Calendar.current.dateInterval(of: .month, for: .now)! }
@@ -70,7 +71,7 @@ struct DashboardView: View {
                         DatePicker("Past date", selection: $backfillDate, in: ...Date.now, displayedComponents: .date)
                         Spacer()
                         Button("Add Check-in") { service.backfill(date: backfillDate) }
-                        Button("Remove Check-in", role: .destructive) { service.removeCheckIn(date: backfillDate) }
+                        Button("Remove Check-in", role: .destructive) { showingRemoveConfirmation = true }
                     }
                 }.padding(.top, 6)
             }
@@ -80,6 +81,9 @@ struct DashboardView: View {
         }
         .padding(26).frame(minWidth: 900, minHeight: heatRange == .year ? 780 : 600)
         .background(OfficeTheme.background)
+        .confirmationDialog("Remove this check-in?", isPresented: $showingRemoveConfirmation, titleVisibility: .visible) {
+            Button("Remove Check-in", role: .destructive) { service.removeCheckIn(date: backfillDate) }
+        } message: { Text("This action will be recorded in the operations audit file.") }
         .onAppear { editingSSID = storedSSID; service.start(using: context); launchAtLogin = service.launchAtLoginEnabled }
     }
 
