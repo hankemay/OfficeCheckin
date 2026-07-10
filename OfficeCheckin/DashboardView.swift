@@ -60,6 +60,12 @@ struct DashboardView: View {
         let number = (calendar.component(.month, from: quarter.start) - 1) / 3 + 1
         return "Workdays (\(year)Q\(number))"
     }
+    private var matchedWiFiNote: String? {
+        guard let ssid = service.matchedWiFi else { return nil }
+        guard let date = service.matchedAt else { return "Matched Wi-Fi: \(ssid)" }
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "MM/dd/yyyy HH:mm:ss"
+        return "Matched Wi-Fi: \(ssid)\nMatched at: \(formatter.string(from: date))"
+    }
     private var calendarStates: [String: CalendarDayState] {
         var events: [(date: Date, dayKey: String, state: CalendarDayState)] = []
         for checkIn in checkins {
@@ -98,7 +104,7 @@ struct DashboardView: View {
                 StatusBadge(status: service.automaticStatus, text: service.statusText)
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
-                MetricCard(title: todayMetricTitle, value: service.isCheckedInToday ? "Checked in" : "Not checked in today", valueColor: service.isCheckedInToday ? .green : .yellow, note: service.isCheckedInToday ? "Matched Wi-Fi: \(service.matchedWiFi ?? service.targetSSID)" : nil)
+                MetricCard(title: todayMetricTitle, value: service.isCheckedInToday ? "Checked in" : "Not checked in today", valueColor: service.isCheckedInToday ? .green : .yellow, note: service.isCheckedInToday ? matchedWiFiNote : nil)
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
                 MetricCard(title: quarterLabel, value: "\(quarterCheckins.count) / \(workingDays)")
                 MetricCard(title: "Minimum Check-ins", value: "\(minimumCheckIns)")

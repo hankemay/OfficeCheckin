@@ -10,6 +10,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     enum AutomaticStatus { case success, waiting, warning }
     @Published private(set) var currentWiFi = "Checking…"
     @Published private(set) var matchedWiFi: String?
+    @Published private(set) var matchedAt: Date?
     @Published private(set) var wifiHint: String?
     @Published private(set) var isCheckedInToday = false
     @Published private(set) var automaticStatus: AutomaticStatus = .waiting
@@ -57,6 +58,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         // A manual/backfill result is provisional: a later automatic success replaces it.
         if existing?.source == "wifi" {
             matchedWiFi = existing?.ssid
+            matchedAt = existing?.checkedInAt
             updateCurrentWiFi()
             automaticStatus = .success
             statusText = "Checked in today"
@@ -237,19 +239,21 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
             // Preserve a real automatic result; replace provisional manual/backfill data.
             guard existing.source != "wifi" else {
                 matchedWiFi = existing.ssid
+                matchedAt = existing.checkedInAt
                 isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; scheduleNextDay(); return
             }
             existing.checkedInAt = .now
             existing.ssid = ssid
             existing.source = source
             do {
-                try context.save(); matchedWiFi = ssid; isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; try exportAfterSuccessfulCheckIn(context); scheduleNextDay()
+                try context.save(); matchedWiFi = ssid; matchedAt = existing.checkedInAt; isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; try exportAfterSuccessfulCheckIn(context); scheduleNextDay()
             } catch { automaticStatus = .warning; statusText = "Automatic check-in needs attention"; lastError = "Check-in failed: \(error.localizedDescription)" }
             return
         }
-        context.insert(CheckIn(dayKey: key, ssid: ssid, source: source))
+        let newCheckIn = CheckIn(dayKey: key, ssid: ssid, source: source)
+        context.insert(newCheckIn)
         do {
-            try context.save(); matchedWiFi = ssid; isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; try exportAfterSuccessfulCheckIn(context); scheduleNextDay()
+            try context.save(); matchedWiFi = ssid; matchedAt = newCheckIn.checkedInAt; isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; try exportAfterSuccessfulCheckIn(context); scheduleNextDay()
         } catch { automaticStatus = .warning; statusText = "Automatic check-in needs attention"; lastError = "Check-in failed: \(error.localizedDescription)" }
     }
 
