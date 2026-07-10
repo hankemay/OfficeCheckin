@@ -24,7 +24,23 @@ struct DashboardView: View {
         return elapsedWorkingDays == 0 ? 0 : Double(quarterCheckins.count) / (Double(elapsedWorkingDays) / 5)
     }
     private var minimumCheckIns: Int { max(1, Int(quarter.duration / (7 * 86_400))) * 2 }
-    private var expectedDaysLeft: Int { max(0, minimumCheckIns - quarterCheckins.count) }
+    private var expectedDaysLeft: Int { minimumCheckIns - quarterCheckins.count }
+    private var remainingWorkingDays: Int {
+        let today = Calendar.current.startOfDay(for: .now)
+        return stride(from: today, to: quarter.end, by: 86_400).filter { !Calendar.current.isDateInWeekend($0) }.count
+    }
+    private var expectedDaysColor: Color {
+        if expectedDaysLeft <= 0 { return .green }
+        if expectedDaysLeft > remainingWorkingDays { return .red }
+        if expectedDaysLeft > remainingWorkingDays / 2 { return .yellow }
+        return OfficeTheme.ink
+    }
+    private var expectedDaysNote: String? {
+        if expectedDaysLeft <= 0 { return "Quarter target reached" }
+        if expectedDaysLeft > remainingWorkingDays { return "Required office attendance cannot be met" }
+        if expectedDaysLeft > remainingWorkingDays / 2 { return "Increase office days to meet the target" }
+        return nil
+    }
     private var quarterHistory: [QuarterSummary] { QuarterSummary.all(from: checkins) }
 
     var body: some View {
@@ -43,7 +59,7 @@ struct DashboardView: View {
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
                 MetricCard(title: "Working Days (Quarter)", value: "\(quarterCheckins.count) / \(workingDays)")
                 MetricCard(title: "Minimum Check-ins", value: "\(minimumCheckIns)")
-                MetricCard(title: "Expected Check-ins Days Left", value: "\(expectedDaysLeft)", valueColor: expectedDaysLeft == 0 ? .green : OfficeTheme.ink)
+                MetricCard(title: "Expected Check-in Days Remaining", value: "\(expectedDaysLeft)", valueColor: expectedDaysColor, note: expectedDaysNote)
                 MetricCard(title: "Avg / Week", value: String(format: "%.1f", weeklyAverage), valueColor: weeklyAverage <= 2 ? .red : .green)
             }
             GroupBox {
@@ -64,7 +80,7 @@ struct DashboardView: View {
                     ForEach(quarterHistory) { summary in QuarterHistoryRow(summary: summary) }
                 }.padding(.top, 6)
             }
-            DisclosureGroup("Advanced") {
+            DisclosureGroup("Advanced Manual Operations") {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Manual changes are recorded in OfficeCheckin_Operations_Latest.xlsx.").font(.caption).foregroundStyle(.secondary)
                     HStack {
@@ -120,7 +136,7 @@ struct DashboardView: View {
 
 private enum HeatRange: String, CaseIterable, Identifiable { case month = "This Month", quarter = "This Quarter", year = "This Year"; var id: String { rawValue } }
 private enum OfficeTheme { static let primary = Color(red: 0.14, green: 0.34, blue: 0.84); static let ink = Color(red: 0.08, green: 0.13, blue: 0.24); static let background = Color(red: 0.96, green: 0.97, blue: 0.99) }
-private struct MetricCard: View { let title: String; let value: String; var valueColor: Color = OfficeTheme.ink; var body: some View { VStack(alignment: .leading, spacing: 8) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).foregroundStyle(valueColor).lineLimit(1).minimumScaleFactor(0.7) }.frame(maxWidth: .infinity, alignment: .leading).padding().background(.white, in: RoundedRectangle(cornerRadius: 12)).shadow(color: OfficeTheme.ink.opacity(0.06), radius: 8, y: 3) } }
+private struct MetricCard: View { let title: String; let value: String; var valueColor: Color = OfficeTheme.ink; var note: String? = nil; var body: some View { VStack(alignment: .leading, spacing: 6) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).foregroundStyle(valueColor).lineLimit(1).minimumScaleFactor(0.7); if let note { Text(note).font(.caption2).foregroundStyle(valueColor).lineLimit(2) } }.frame(maxWidth: .infinity, minHeight: 74, alignment: .leading).padding().background(.white, in: RoundedRectangle(cornerRadius: 12)).shadow(color: OfficeTheme.ink.opacity(0.06), radius: 8, y: 3) } }
 private struct StatusBadge: View {
     let status: CheckInService.AutomaticStatus; let text: String
     private var color: Color { status == .success ? .green : .yellow }
@@ -148,8 +164,8 @@ private struct MonthCalendar: View {
                 ForEach(Array(slots.enumerated()), id: \.offset) { _, day in
                     if let day {
                         let checked = dates.contains(day.formatted(.iso8601.year().month().day()))
-                        VStack(spacing: compact ? 1 : 3) { Text(day.formatted(.dateTime.day())).font(compact ? .caption2 : .caption); Circle().fill(checked ? OfficeTheme.primary : .gray.opacity(0.22)).frame(width: compact ? 5 : 6, height: compact ? 5 : 6) }
-                            .frame(maxWidth: .infinity, minHeight: compact ? 25 : 38).background(checked ? OfficeTheme.primary.opacity(0.12) : .white, in: RoundedRectangle(cornerRadius: compact ? 4 : 6))
+                        VStack(spacing: compact ? 1 : 3) { Text(day.formatted(.dateTime.day())).font(compact ? .caption2 : .caption); Circle().fill(checked ? .green : .gray.opacity(0.22)).frame(width: compact ? 5 : 6, height: compact ? 5 : 6) }
+                            .frame(maxWidth: .infinity, minHeight: compact ? 25 : 38).background(checked ? Color.green.opacity(0.12) : .white, in: RoundedRectangle(cornerRadius: compact ? 4 : 6))
                     } else { Color.clear.frame(maxWidth: .infinity, minHeight: compact ? 25 : 38) }
                 }
             }

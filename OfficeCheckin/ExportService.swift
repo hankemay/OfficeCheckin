@@ -3,7 +3,11 @@ import SwiftData
 
 enum ExportService {
     static var directory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let fileManager = FileManager.default
+        let besideApp = Bundle.main.bundleURL.deletingLastPathComponent().appending(path: "OfficeCheckin Exports", directoryHint: .isDirectory)
+        if (try? fileManager.createDirectory(at: besideApp, withIntermediateDirectories: true)) != nil,
+           fileManager.isWritableFile(atPath: besideApp.path) { return besideApp }
+        let base = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appending(path: "OfficeCheckin/exports", directoryHint: .isDirectory)
     }
 

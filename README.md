@@ -18,7 +18,7 @@ macOS 原生 Wi‑Fi 自动打卡工具。使用 SwiftUI、SwiftData、CoreWLAN 
 2. 选择 **OfficeCheckin** scheme，目标为 **My Mac**，运行。
 3. 如系统询问位置权限，请允许；macOS 有时需要它才能读取当前 Wi‑Fi 名称。
 
-数据与 Excel 导出位置：`~/Library/Application Support/OfficeCheckin/`。
+Excel files are written to an `OfficeCheckin Exports` folder beside the installed app. If that directory is not writable (for example, `/Applications`), the app safely falls back to `~/Library/Application Support/OfficeCheckin/exports/`.
 
 ## GitHub
 
