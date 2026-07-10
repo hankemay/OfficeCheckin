@@ -98,7 +98,7 @@ struct DashboardView: View {
                 StatusBadge(status: service.automaticStatus, text: service.statusText)
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
-                MetricCard(title: todayMetricTitle, value: service.isCheckedInToday ? "Checked in" : "Not checked in today", valueColor: service.isCheckedInToday ? .green : .yellow)
+                MetricCard(title: todayMetricTitle, value: service.isCheckedInToday ? "Checked in" : "Not checked in today", valueColor: service.isCheckedInToday ? .green : .yellow, note: service.isCheckedInToday ? "Matched Wi-Fi: \(service.matchedWiFi ?? service.targetSSID)" : nil)
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
                 MetricCard(title: quarterLabel, value: "\(quarterCheckins.count) / \(workingDays)")
                 MetricCard(title: "Minimum Check-ins", value: "\(minimumCheckIns)")
