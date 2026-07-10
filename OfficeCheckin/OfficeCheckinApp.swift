@@ -5,7 +5,7 @@ import SwiftData
 struct OfficeCheckinApp: App {
     let container: ModelContainer = {
         do {
-            let schema = Schema([CheckIn.self])
+            let schema = Schema([CheckIn.self, OperationLog.self])
             let configuration = ModelConfiguration("OfficeCheckin", schema: schema)
             return try ModelContainer(for: schema, configurations: [configuration])
         } catch {

@@ -15,3 +15,16 @@ final class CheckIn {
         self.source = source
     }
 }
+
+@Model
+final class OperationLog {
+    var performedAt: Date
+    var action: String
+    var dayKey: String
+
+    init(action: String, dayKey: String, performedAt: Date = .now) {
+        self.action = action
+        self.dayKey = dayKey
+        self.performedAt = performedAt
+    }
+}

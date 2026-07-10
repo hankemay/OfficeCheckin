@@ -11,7 +11,7 @@ enum ExportService {
     static func export(from context: ModelContext? = nil) throws -> URL {
         let modelContext: ModelContext
         if let context { modelContext = context }
-        else if let container = try? ModelContainer(for: CheckIn.self) { modelContext = ModelContext(container) }
+        else if let container = try? ModelContainer(for: CheckIn.self, OperationLog.self) { modelContext = ModelContext(container) }
         else { throw ExportError.databaseUnavailable }
         let data = try modelContext.fetch(FetchDescriptor<CheckIn>(sortBy: [SortDescriptor(\.dayKey)]))
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -42,6 +42,29 @@ enum ExportService {
         try SimpleZip.write(parts, to: latest)
         let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.contentModificationDateKey]).filter { $0.lastPathComponent.starts(with: "OfficeCheckin_") && $0.lastPathComponent != "OfficeCheckin_Latest.xlsx" }.sorted { $0.contentModificationDate < $1.contentModificationDate }
         for old in files.dropLast(2) { try FileManager.default.removeItem(at: old) }
+        return latest
+    }
+
+    /// A separate audit trail for intentional human changes such as backfills and removals.
+    @discardableResult
+    static func exportOperations(from context: ModelContext) throws -> URL {
+        let logs = try context.fetch(FetchDescriptor<OperationLog>(sortBy: [SortDescriptor(\.performedAt)]))
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let latest = directory.appending(path: "OfficeCheckin_Operations_Latest.xlsx")
+        let rows = logs.enumerated().map { index, log in
+            let row = index + 2
+            let timestamp = log.performedAt.formatted(date: .numeric, time: .standard)
+            return "<row r=\"\(row)\"><c r=\"A\(row)\" t=\"inlineStr\"><is><t>\(timestamp.xml)</t></is></c><c r=\"B\(row)\" t=\"inlineStr\"><is><t>\(log.action.xml)</t></is></c><c r=\"C\(row)\" t=\"inlineStr\"><is><t>\(log.dayKey.xml)</t></is></c></row>"
+        }.joined()
+        let sheet = "<?xml version=\"1.0\"?><worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t>Performed At</t></is></c><c r=\"B1\" t=\"inlineStr\"><is><t>Operation</t></is></c><c r=\"C1\" t=\"inlineStr\"><is><t>Check-in Date</t></is></c></row>\(rows)</sheetData></worksheet>"
+        let parts = [
+            "[Content_Types].xml": "<?xml version=\"1.0\"?><Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/><Default Extension=\"xml\" ContentType=\"application/xml\"/><Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/><Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/></Types>",
+            "_rels/.rels": "<?xml version=\"1.0\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/></Relationships>",
+            "xl/workbook.xml": "<?xml version=\"1.0\"?><workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><sheets><sheet name=\"Operations\" sheetId=\"1\" r:id=\"rId1\"/></sheets></workbook>",
+            "xl/_rels/workbook.xml.rels": "<?xml version=\"1.0\"?><Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/></Relationships>",
+            "xl/worksheets/sheet1.xml": sheet
+        ]
+        try SimpleZip.write(parts, to: latest)
         return latest
     }
 }

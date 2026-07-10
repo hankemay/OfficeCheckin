@@ -65,8 +65,20 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         guard (try? context.fetch(FetchDescriptor(predicate: predicate)).isEmpty) != false else { lastError = "This date already has a check-in."; return }
         let timestamp = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
         context.insert(CheckIn(dayKey: key, checkedInAt: timestamp, ssid: "Manual backfill", source: "backfill"))
-        do { try context.save(); _ = try ExportService.export(from: context); lastError = nil }
+        context.insert(OperationLog(action: "Added backfill", dayKey: key))
+        do { try context.save(); _ = try ExportService.export(from: context); _ = try ExportService.exportOperations(from: context); lastError = nil }
         catch { lastError = "Backfill failed: \(error.localizedDescription)" }
+    }
+
+    func removeCheckIn(date: Date) {
+        guard date <= .now else { lastError = "A future date cannot be removed."; return }
+        guard let context else { lastError = "The local database is unavailable."; return }
+        let key = dayKey(for: date), predicate = #Predicate<CheckIn> { $0.dayKey == key }
+        guard let existing = try? context.fetch(FetchDescriptor(predicate: predicate)).first else { lastError = "There is no check-in for this date."; return }
+        context.delete(existing)
+        context.insert(OperationLog(action: "Removed check-in", dayKey: key))
+        do { try context.save(); _ = try ExportService.export(from: context); _ = try ExportService.exportOperations(from: context); refresh(); lastError = nil }
+        catch { lastError = "Removal failed: \(error.localizedDescription)" }
     }
 
     func saveTargetSSID(_ value: String) {

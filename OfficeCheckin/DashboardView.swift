@@ -18,10 +18,12 @@ struct DashboardView: View {
     private var quarterCheckins: [CheckIn] { checkins.filter { quarter.contains($0.checkedInAt) } }
     private var workingDays: Int { stride(from: quarter.start, to: quarter.end, by: 86_400).filter { !Calendar.current.isDateInWeekend($0) }.count }
     private var weeklyAverage: Double {
-        let elapsedWeeks = max(1, Int(ceil(Date.now.timeIntervalSince(quarter.start) / (7 * 86_400))))
-        return Double(quarterCheckins.count) / Double(elapsedWeeks)
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
+        let elapsedWorkingDays = stride(from: quarter.start, to: min(end, quarter.end), by: 86_400).filter { !Calendar.current.isDateInWeekend($0) }.count
+        return elapsedWorkingDays == 0 ? 0 : Double(quarterCheckins.count) / (Double(elapsedWorkingDays) / 5)
     }
     private var minimumCheckIns: Int { max(1, Int(quarter.duration / (7 * 86_400))) * 2 }
+    private var expectedDaysLeft: Int { max(0, minimumCheckIns - quarterCheckins.count) }
     private var quarterHistory: [QuarterSummary] { QuarterSummary.all(from: checkins) }
 
     var body: some View {
@@ -35,11 +37,12 @@ struct DashboardView: View {
                 StatusBadge(status: service.automaticStatus, text: service.statusText)
                 Button("Export Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary)
             }
-            HStack(spacing: 12) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
                 MetricCard(title: "Today", value: service.isCheckedInToday ? "Checked in" : "Waiting", valueColor: service.isCheckedInToday ? .green : .yellow)
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
                 MetricCard(title: "Working Days (Quarter)", value: "\(quarterCheckins.count) / \(workingDays)")
                 MetricCard(title: "Minimum Check-ins", value: "\(minimumCheckIns)")
+                MetricCard(title: "Expected Check-ins Days Left", value: "\(expectedDaysLeft)", valueColor: expectedDaysLeft == 0 ? .green : OfficeTheme.ink)
                 MetricCard(title: "Avg / Week", value: String(format: "%.1f", weeklyAverage), valueColor: weeklyAverage <= 2 ? .red : .green)
             }
             GroupBox {
@@ -55,13 +58,20 @@ struct DashboardView: View {
                 }
             }
             GroupBox("Automation") { HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { service.saveTargetSSID(editingSSID); storedSSID = editingSSID }; Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }; Spacer(); Button("Check In Now") { service.manualCheckIn() } }.padding(.vertical, 4) }
-            GroupBox("Backfill a Past Date") {
-                HStack { DatePicker("Date", selection: $backfillDate, in: ...Date.now, displayedComponents: .date); Spacer(); Button("Add Check-in") { service.backfill(date: backfillDate) }.buttonStyle(.bordered) }
-                    .padding(.vertical, 4)
-            }
             DisclosureGroup("Quarter History") {
                 VStack(spacing: 6) {
                     ForEach(quarterHistory) { summary in QuarterHistoryRow(summary: summary) }
+                }.padding(.top, 6)
+            }
+            DisclosureGroup("Advanced") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Manual changes are recorded in OfficeCheckin_Operations_Latest.xlsx.").font(.caption).foregroundStyle(.secondary)
+                    HStack {
+                        DatePicker("Past date", selection: $backfillDate, in: ...Date.now, displayedComponents: .date)
+                        Spacer()
+                        Button("Add Check-in") { service.backfill(date: backfillDate) }
+                        Button("Remove Check-in", role: .destructive) { service.removeCheckIn(date: backfillDate) }
+                    }
                 }.padding(.top, 6)
             }
             if let hint = service.wifiHint { Label(hint, systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(OfficeTheme.primary) }
