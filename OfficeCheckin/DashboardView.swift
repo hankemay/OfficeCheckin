@@ -8,6 +8,7 @@ struct DashboardView: View {
     @Query(sort: \CheckIn.dayKey) private var checkins: [CheckIn]
     @Query private var operations: [OperationLog]
     @AppStorage(CheckInService.targetKey) private var storedSSID = CheckInService.defaultSSID
+    @AppStorage("displayName") private var displayName = NSUserName()
     @State private var editingSSID = CheckInService.defaultSSID
     @State private var launchAtLogin = false
     @State private var heatRange: HeatRange = .month
@@ -15,6 +16,7 @@ struct DashboardView: View {
     @State private var showingRemoveConfirmation = false
     @State private var showingTargetChangeConfirmation = false
     @State private var pendingTargetSSID = ""
+    @State private var debuggingInfoExpanded = false
 
     private var quarter: DateInterval { Calendar.current.dateInterval(of: .quarter, for: .now)! }
     private var month: DateInterval { Calendar.current.dateInterval(of: .month, for: .now)! }
@@ -59,13 +61,14 @@ struct DashboardView: View {
                 VStack(alignment: .leading) {
                     Text("Office Check-in").font(.largeTitle.bold()).foregroundStyle(OfficeTheme.ink)
                     Text("Local automatic Wi-Fi check-in · retries every 5 minutes").foregroundStyle(.secondary)
+                    HStack(spacing: 8) { Text("Name").font(.caption).foregroundStyle(.secondary); TextField("Name", text: $displayName).textFieldStyle(.roundedBorder).frame(width: 190) }
                 }
                 Spacer()
                 StatusBadge(status: service.automaticStatus, text: service.statusText)
                 Button("Export Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary)
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
-                MetricCard(title: "Today", value: service.isCheckedInToday ? "Checked in" : "Waiting", valueColor: service.isCheckedInToday ? .green : .yellow)
+                MetricCard(title: "Today", value: service.isCheckedInToday ? "Checked in" : "Not checked in today", valueColor: service.isCheckedInToday ? .green : .yellow)
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
                 MetricCard(title: "Working Days (Quarter)", value: "\(quarterCheckins.count) / \(workingDays)")
                 MetricCard(title: "Minimum Check-ins", value: "\(minimumCheckIns)")
@@ -92,20 +95,9 @@ struct DashboardView: View {
                 HStack {
                     Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }
                     Spacer()
-                    Button("Check In Now") { service.manualCheckIn() }
                 }.padding(.vertical, 4)
-                DisclosureGroup("Target WiFi Settings") {
+                DisclosureGroup("Target WiFi Settings for Check-in") {
                     HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { saveTargetSSID() } }.padding(.top, 8)
-                }
-            }
-            if !service.isCheckedInToday {
-                GroupBox("Wi-Fi Debug") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("Check-in Unsuccessful", systemImage: "exclamationmark.triangle.fill").font(.subheadline.weight(.semibold)).foregroundStyle(.yellow)
-                        Divider()
-                        LabeledContent("Current Wi-Fi") { Text(service.currentWiFi) }
-                        LabeledContent("Target Wi-Fi") { Text(service.targetSSID) }
-                    }.padding(.vertical, 3)
                 }
             }
             DisclosureGroup("Quarter History") {
@@ -131,8 +123,17 @@ struct DashboardView: View {
                     }
                 }.padding(.top, 6)
             }
-            if let hint = service.wifiHint { Label(hint, systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(OfficeTheme.primary) }
-            if let error = service.lastError { Text(error).foregroundStyle(.red) }
+            DisclosureGroup("Debugging Info", isExpanded: $debuggingInfoExpanded) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(service.isCheckedInToday ? "Check-in successful" : "Check-in unsuccessful", systemImage: service.isCheckedInToday ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(service.isCheckedInToday ? .green : .yellow)
+                    Divider()
+                    LabeledContent("Current Wi-Fi") { Text(service.currentWiFi) }
+                    LabeledContent("Target Wi-Fi") { Text(service.targetSSID) }
+                    if let hint = service.wifiHint { Text(hint).font(.caption).foregroundStyle(.secondary) }
+                    if let error = service.lastError { Text(error).font(.caption).foregroundStyle(.red) }
+                }.padding(.top, 6)
+            }
             Spacer()
         }
         .padding(26).frame(minWidth: 900, minHeight: heatRange == .year ? 780 : 600)
@@ -144,7 +145,8 @@ struct DashboardView: View {
             Button("Change Target WiFi", role: .destructive) { service.saveTargetSSID(pendingTargetSSID); storedSSID = pendingTargetSSID; editingSSID = pendingTargetSSID }
             Button("Cancel", role: .cancel) { editingSSID = storedSSID }
         } message: { Text("Changing the target WiFi will clear today's existing check-in result and immediately check again. Please proceed carefully.") }
-        .onAppear { editingSSID = storedSSID; launchAtLogin = service.launchAtLoginEnabled; service.refresh() }
+        .onAppear { editingSSID = storedSSID; launchAtLogin = service.launchAtLoginEnabled; debuggingInfoExpanded = service.currentWiFi == "Not connected"; service.refresh() }
+        .onChange(of: service.currentWiFi) { value in if value == "Not connected" { debuggingInfoExpanded = true } }
     }
 
     private func exportAndReveal() {

@@ -10,7 +10,6 @@ struct MenuBarView: View {
             Text(service.isCheckedInToday ? "Checked in today" : "Waiting for automatic check-in").font(.headline)
             Text("Wi‑Fi: \(service.currentWiFi)").foregroundStyle(.secondary)
             Divider()
-            Button("Check In Now") { service.manualCheckIn() }
             Button("Export Excel") { do { NSWorkspace.shared.activateFileViewerSelecting([try ExportService.export(from: context)]) } catch { service.report(error) } }
             Button("Refresh Wi‑Fi") { service.refresh() }
             Divider()
