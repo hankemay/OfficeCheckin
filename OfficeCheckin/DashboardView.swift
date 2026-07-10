@@ -11,7 +11,7 @@ struct DashboardView: View {
     @State private var editingSSID = CheckInService.defaultSSID
     @State private var launchAtLogin = false
     @State private var heatRange: HeatRange = .month
-    @State private var backfillDate = Calendar.current.date(byAdding: .day, value: -1, to: .now) ?? .now
+    @State private var backfillDate = Date.now
     @State private var showingRemoveConfirmation = false
     @State private var showingTargetChangeConfirmation = false
     @State private var pendingTargetSSID = ""
@@ -88,7 +88,16 @@ struct DashboardView: View {
                     .labelsHidden().pickerStyle(.segmented).frame(width: 180)
                 }
             }
-            GroupBox("Automation") { HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { saveTargetSSID() }; Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }; Spacer(); Button("Check In Now") { service.manualCheckIn() } }.padding(.vertical, 4) }
+            GroupBox("Automation") {
+                HStack {
+                    Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }
+                    Spacer()
+                    Button("Check In Now") { service.manualCheckIn() }
+                }.padding(.vertical, 4)
+                DisclosureGroup("Target WiFi Settings") {
+                    HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { saveTargetSSID() } }.padding(.top, 8)
+                }
+            }
             if !service.isCheckedInToday {
                 GroupBox("Wi-Fi Debug") {
                     VStack(alignment: .leading, spacing: 8) {

@@ -38,18 +38,20 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         guard timer == nil else { return }
         context = modelContext
         enableLaunchAtLogin()
-        refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
-        }
+        beginPolling()
     }
 
     func refresh() {
+        updateTodayStatus()
+        if isCheckedInToday {
+            automaticStatus = .success
+            statusText = "Checked in today"
+            scheduleNextDay()
+            return
+        }
         let ssid = wifiName()
         currentWiFi = ssid ?? "Not connected"
         wifiHint = ssid == nil ? "Allow Location access and keep App Sandbox disabled to read the Wi-Fi name." : nil
-        updateTodayStatus()
-        if isCheckedInToday { automaticStatus = .success; statusText = "Checked in today"; return }
         guard let ssid else { automaticStatus = .waiting; statusText = "Waiting for \(targetSSID)"; return }
         guard ssidMatches(ssid, targetSSID) else {
             automaticStatus = .waiting
@@ -91,8 +93,8 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         let newTarget = value.trimmingCharacters(in: .whitespacesAndNewlines)
         let changed = !ssidMatches(newTarget, targetSSID)
         UserDefaults.standard.set(newTarget, forKey: Self.targetKey)
-        if changed { resetTodayForTargetChange() }
-        refresh()
+        if changed { resetTodayForTargetChange(); beginPolling() }
+        else { refresh() }
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
@@ -153,6 +155,24 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         isCheckedInToday = (try? context.fetch(FetchDescriptor(predicate: predicate)).isEmpty == false) ?? false
     }
 
+    private func beginPolling() {
+        timer?.invalidate(); timer = nil
+        refresh()
+        guard !isCheckedInToday else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refresh() }
+        }
+    }
+
+    /// Stop Wi-Fi polling once today's record exists, then resume automatically at the next local day.
+    private func scheduleNextDay() {
+        timer?.invalidate()
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now.addingTimeInterval(24 * 60 * 60)
+        timer = Timer.scheduledTimer(withTimeInterval: max(1, tomorrow.timeIntervalSinceNow), repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.beginPolling() }
+        }
+    }
+
     /// A changed target means today's automatic result must be verified against the new network.
     private func resetTodayForTargetChange() {
         guard let context else { return }
@@ -177,7 +197,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         }
         context.insert(CheckIn(dayKey: key, ssid: ssid, source: source))
         do {
-            try context.save(); isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; _ = try ExportService.export(from: context)
+            try context.save(); isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; _ = try ExportService.export(from: context); scheduleNextDay()
         } catch { automaticStatus = .warning; statusText = "Automatic check-in needs attention"; lastError = "Check-in failed: \(error.localizedDescription)" }
     }
 }
