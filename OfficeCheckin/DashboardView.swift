@@ -51,7 +51,7 @@ struct DashboardView: View {
     }
     private var quarterHistory: [QuarterSummary] { QuarterSummary.all(from: checkins) }
     private var todayMetricTitle: String {
-        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "MM-dd-yyyy, EEEE"
+        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "MM/dd/yyyy, EEEE"
         return "Today (\(formatter.string(from: .now)))"
     }
     private var quarterLabel: String {
@@ -170,8 +170,7 @@ struct DashboardView: View {
             Button("Change Target WiFi", role: .destructive) { service.saveTargetSSID(pendingTargetSSID); storedSSID = pendingTargetSSID; editingSSID = pendingTargetSSID }
             Button("Cancel", role: .cancel) { editingSSID = storedSSID }
         } message: { Text("Changing the target WiFi will clear today's existing check-in result and immediately check again. Please proceed carefully.") }
-        .onAppear { editingSSID = storedSSID; launchAtLogin = service.launchAtLoginEnabled; nameDraft = displayName; debuggingInfoExpanded = service.currentWiFi == "Not connected"; service.refresh() }
-        .onChange(of: service.currentWiFi) { value in if value == "Not connected" { debuggingInfoExpanded = true } }
+        .onAppear { editingSSID = storedSSID; launchAtLogin = service.launchAtLoginEnabled; nameDraft = displayName; debuggingInfoExpanded = false; service.refresh() }
     }
 
     private func exportAndReveal() {
