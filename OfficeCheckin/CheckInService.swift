@@ -88,7 +88,10 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     }
 
     func saveTargetSSID(_ value: String) {
-        UserDefaults.standard.set(value.trimmingCharacters(in: .whitespacesAndNewlines), forKey: Self.targetKey)
+        let newTarget = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let changed = !ssidMatches(newTarget, targetSSID)
+        UserDefaults.standard.set(newTarget, forKey: Self.targetKey)
+        if changed { resetTodayForTargetChange() }
         refresh()
     }
 
@@ -148,6 +151,21 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         let key = dayKey()
         let predicate = #Predicate<CheckIn> { $0.dayKey == key }
         isCheckedInToday = (try? context.fetch(FetchDescriptor(predicate: predicate)).isEmpty == false) ?? false
+    }
+
+    /// A changed target means today's automatic result must be verified against the new network.
+    private func resetTodayForTargetChange() {
+        guard let context else { return }
+        let key = dayKey(), predicate = #Predicate<CheckIn> { $0.dayKey == key }
+        guard let existing = try? context.fetch(FetchDescriptor(predicate: predicate)).first else { return }
+        context.delete(existing)
+        do {
+            try context.save()
+            isCheckedInToday = false
+            automaticStatus = .waiting
+            statusText = "Target WiFi changed; checking again"
+            _ = try ExportService.export(from: context)
+        } catch { lastError = "Could not reset today's check-in: \(error.localizedDescription)" }
     }
 
     private func checkIn(ssid: String, source: String) {
