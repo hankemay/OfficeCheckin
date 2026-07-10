@@ -20,5 +20,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         service.start(using: container.mainContext)
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.service.refresh() }
+        }
+    }
+
+    /// The menu-bar app and its five-minute timer stay alive after the dashboard is closed.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    func applicationDidBecomeActive(_ notification: Notification) {
+        service.refresh()
     }
 }

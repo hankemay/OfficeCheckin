@@ -97,7 +97,8 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
 
     private func enableLaunchAtLogin() {
         guard SMAppService.mainApp.status != .enabled else { return }
-        try? SMAppService.mainApp.register()
+        do { try SMAppService.mainApp.register() }
+        catch { lastError = "Launch at Login could not be enabled: \(error.localizedDescription)" }
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {

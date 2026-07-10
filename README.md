@@ -11,6 +11,7 @@ macOS 原生 Wi‑Fi 自动打卡工具。使用 SwiftUI、SwiftData、CoreWLAN 
 - 菜单栏常驻、手动打卡和立即导出 Excel
 - 自动生成 `OfficeCheckin_Latest.xlsx`，保存最近两份历史版本
 - 可在设置中启用“登录时启动”
+- The app stays running in the menu bar when its dashboard window is closed. It checks Wi-Fi at launch, when the Mac wakes, and every five minutes until that day's check-in succeeds.
 
 ## 在 Xcode 中运行
 
