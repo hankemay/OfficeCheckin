@@ -13,6 +13,8 @@ struct DashboardView: View {
     @State private var heatRange: HeatRange = .month
     @State private var backfillDate = Calendar.current.date(byAdding: .day, value: -1, to: .now) ?? .now
     @State private var showingRemoveConfirmation = false
+    @State private var showingTargetChangeConfirmation = false
+    @State private var pendingTargetSSID = ""
 
     private var quarter: DateInterval { Calendar.current.dateInterval(of: .quarter, for: .now)! }
     private var month: DateInterval { Calendar.current.dateInterval(of: .month, for: .now)! }
@@ -86,7 +88,17 @@ struct DashboardView: View {
                     .labelsHidden().pickerStyle(.segmented).frame(width: 180)
                 }
             }
-            GroupBox("Automation") { HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { service.saveTargetSSID(editingSSID); storedSSID = editingSSID }; Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }; Spacer(); Button("Check In Now") { service.manualCheckIn() } }.padding(.vertical, 4) }
+            GroupBox("Automation") { HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { saveTargetSSID() }; Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }; Spacer(); Button("Check In Now") { service.manualCheckIn() } }.padding(.vertical, 4) }
+            if !service.isCheckedInToday {
+                GroupBox("Wi-Fi Debug") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("Check-in Unsuccessful", systemImage: "exclamationmark.triangle.fill").font(.subheadline.weight(.semibold)).foregroundStyle(.yellow)
+                        Divider()
+                        LabeledContent("Current Wi-Fi") { Text(service.currentWiFi) }
+                        LabeledContent("Target Wi-Fi") { Text(service.targetSSID) }
+                    }.padding(.vertical, 3)
+                }
+            }
             DisclosureGroup("Quarter History") {
                 VStack(spacing: 6) {
                     ForEach(quarterHistory) { summary in QuarterHistoryRow(summary: summary) }
@@ -119,12 +131,25 @@ struct DashboardView: View {
         .confirmationDialog("Remove this check-in?", isPresented: $showingRemoveConfirmation, titleVisibility: .visible) {
             Button("Remove Check-in", role: .destructive) { service.removeCheckIn(date: backfillDate) }
         } message: { Text("This action will be recorded in the operations audit file.") }
+        .confirmationDialog("Change Target WiFi?", isPresented: $showingTargetChangeConfirmation, titleVisibility: .visible) {
+            Button("Change Target WiFi", role: .destructive) { service.saveTargetSSID(pendingTargetSSID); storedSSID = pendingTargetSSID; editingSSID = pendingTargetSSID }
+            Button("Cancel", role: .cancel) { editingSSID = storedSSID }
+        } message: { Text("Changing the target WiFi will clear today's existing check-in result and immediately check again. Please proceed carefully.") }
         .onAppear { editingSSID = storedSSID; launchAtLogin = service.launchAtLoginEnabled; service.refresh() }
     }
 
     private func exportAndReveal() {
         do { NSWorkspace.shared.activateFileViewerSelecting([try ExportService.export(from: context)]) }
         catch { service.report(error) }
+    }
+
+    private func saveTargetSSID() {
+        let proposed = editingSSID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if proposed.caseInsensitiveCompare(storedSSID.trimmingCharacters(in: .whitespacesAndNewlines)) == .orderedSame {
+            service.saveTargetSSID(proposed); return
+        }
+        pendingTargetSSID = proposed
+        showingTargetChangeConfirmation = true
     }
 
     @ViewBuilder private var calendarOverview: some View {
