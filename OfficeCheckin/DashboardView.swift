@@ -64,7 +64,7 @@ struct DashboardView: View {
         guard let ssid = service.matchedWiFi else { return nil }
         guard let date = service.matchedAt else { return "Matched Wi-Fi: \(ssid)" }
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "MM/dd/yyyy HH:mm:ss"
-        return "Matched Wi-Fi: \(ssid)\nMatched at: \(formatter.string(from: date))"
+        return "Matched Wi-Fi: \(ssid)\nAt: \(formatter.string(from: date))"
     }
     private var calendarStates: [String: CalendarDayState] {
         var events: [(date: Date, dayKey: String, state: CalendarDayState)] = []
@@ -104,7 +104,7 @@ struct DashboardView: View {
                 StatusBadge(status: service.automaticStatus, text: service.statusText)
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
-                MetricCard(title: todayMetricTitle, value: service.isCheckedInToday ? "Checked in" : "Not checked in today", valueColor: service.isCheckedInToday ? .green : .yellow, note: service.isCheckedInToday ? matchedWiFiNote : nil)
+                MetricCard(title: todayMetricTitle, value: service.isCheckedInToday ? "Checked in" : "Not checked in today", valueColor: service.isCheckedInToday ? .green : .yellow, note: service.isCheckedInToday ? matchedWiFiNote : nil, noteColor: OfficeTheme.muted)
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
                 MetricCard(title: quarterLabel, value: "\(quarterCheckins.count) / \(workingDays)")
                 MetricCard(title: "Minimum Check-ins", value: "\(minimumCheckIns)")
@@ -226,8 +226,8 @@ struct DashboardView: View {
 
 private enum HeatRange: String, CaseIterable, Identifiable { case month = "This Month", quarter = "This Quarter", year = "This Year"; var id: String { rawValue } }
 private enum CalendarDayState: Equatable { case checkedIn, backfilled, removed }
-private enum OfficeTheme { static let primary = Color(red: 0.14, green: 0.34, blue: 0.84); static let action = Color(red: 0.23, green: 0.45, blue: 0.78); static let ink = Color(red: 0.08, green: 0.13, blue: 0.24); static let background = Color(red: 0.96, green: 0.97, blue: 0.99) }
-private struct MetricCard: View { let title: String; let value: String; var valueColor: Color = OfficeTheme.ink; var note: String? = nil; var body: some View { VStack(alignment: .leading, spacing: 6) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).foregroundStyle(valueColor).lineLimit(1).minimumScaleFactor(0.7); if let note { Text(note).font(.caption2).foregroundStyle(valueColor).lineLimit(2) } }.frame(maxWidth: .infinity, minHeight: 74, alignment: .leading).padding().background(.white, in: RoundedRectangle(cornerRadius: 12)).shadow(color: OfficeTheme.ink.opacity(0.06), radius: 8, y: 3) } }
+private enum OfficeTheme { static let primary = Color(red: 0.14, green: 0.34, blue: 0.84); static let action = Color(red: 0.23, green: 0.45, blue: 0.78); static let ink = Color(red: 0.08, green: 0.13, blue: 0.24); static let muted = Color(red: 0.42, green: 0.46, blue: 0.54); static let background = Color(red: 0.96, green: 0.97, blue: 0.99) }
+private struct MetricCard: View { let title: String; let value: String; var valueColor: Color = OfficeTheme.ink; var note: String? = nil; var noteColor: Color? = nil; var body: some View { VStack(alignment: .leading, spacing: 6) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).foregroundStyle(valueColor).lineLimit(1).minimumScaleFactor(0.7); if let note { Text(note).font(.caption2).foregroundStyle(noteColor ?? valueColor).lineLimit(2) } }.frame(maxWidth: .infinity, minHeight: 74, alignment: .leading).padding().background(.white, in: RoundedRectangle(cornerRadius: 12)).shadow(color: OfficeTheme.ink.opacity(0.06), radius: 8, y: 3) } }
 private struct StatusBadge: View {
     let status: CheckInService.AutomaticStatus; let text: String
     private var color: Color { status == .success ? .green : .yellow }
