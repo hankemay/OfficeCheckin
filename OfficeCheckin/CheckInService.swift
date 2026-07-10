@@ -7,9 +7,12 @@ import SwiftData
 
 @MainActor
 final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegate {
-    @Published private(set) var currentWiFi = "正在检测…"
+    enum AutomaticStatus { case success, waiting, warning }
+    @Published private(set) var currentWiFi = "Checking…"
     @Published private(set) var wifiHint: String?
     @Published private(set) var isCheckedInToday = false
+    @Published private(set) var automaticStatus: AutomaticStatus = .waiting
+    @Published private(set) var statusText = "Waiting for automatic check-in"
     @Published var lastError: String?
 
     private var timer: Timer?
@@ -21,6 +24,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     var targetSSID: String {
         UserDefaults.standard.string(forKey: Self.targetKey) ?? Self.defaultSSID
     }
+    var launchAtLoginEnabled: Bool { SMAppService.mainApp.status == .enabled }
 
     override init() {
         super.init()
@@ -33,6 +37,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     func start(using modelContext: ModelContext) {
         guard timer == nil else { return }
         context = modelContext
+        enableLaunchAtLogin()
         refresh()
         timer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
@@ -41,15 +46,27 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
 
     func refresh() {
         let ssid = wifiName()
-        currentWiFi = ssid ?? "未连接"
-        wifiHint = ssid == nil ? "请确认已允许位置权限；也请在 Xcode 的 Signing & Capabilities 中保持 App Sandbox 关闭。" : nil
+        currentWiFi = ssid ?? "Not connected"
+        wifiHint = ssid == nil ? "Allow Location access and keep App Sandbox disabled to read the Wi-Fi name." : nil
         updateTodayStatus()
-        guard let ssid, ssid == targetSSID else { return }
+        if isCheckedInToday { automaticStatus = .success; statusText = "Checked in today"; return }
+        guard let ssid, ssid == targetSSID else { automaticStatus = .waiting; statusText = "Waiting for \(targetSSID)"; return }
         checkIn(ssid: ssid, source: "wifi")
     }
 
     func manualCheckIn() {
-        checkIn(ssid: wifiName() ?? "手动打卡", source: "manual")
+        checkIn(ssid: wifiName() ?? "Manual check-in", source: "manual")
+    }
+
+    func backfill(date: Date) {
+        guard date <= .now else { lastError = "A future date cannot be checked in."; return }
+        guard let context else { lastError = "The local database is unavailable."; return }
+        let key = dayKey(for: date), predicate = #Predicate<CheckIn> { $0.dayKey == key }
+        guard (try? context.fetch(FetchDescriptor(predicate: predicate)).isEmpty) != false else { lastError = "This date already has a check-in."; return }
+        let timestamp = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
+        context.insert(CheckIn(dayKey: key, checkedInAt: timestamp, ssid: "Manual backfill", source: "backfill"))
+        do { try context.save(); _ = try ExportService.export(from: context); lastError = nil }
+        catch { lastError = "Backfill failed: \(error.localizedDescription)" }
     }
 
     func saveTargetSSID(_ value: String) {
@@ -61,10 +78,15 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         do {
             if enabled { try SMAppService.mainApp.register() }
             else { try SMAppService.mainApp.unregister() }
-        } catch { lastError = "登录启动设置失败：\(error.localizedDescription)" }
+        } catch { lastError = "Could not update the login-item setting: \(error.localizedDescription)" }
     }
 
     func report(_ error: Error) { lastError = error.localizedDescription }
+
+    private func enableLaunchAtLogin() {
+        guard SMAppService.mainApp.status != .enabled else { return }
+        try? SMAppService.mainApp.register()
+    }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         refresh()
@@ -109,11 +131,11 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         let key = dayKey()
         let predicate = #Predicate<CheckIn> { $0.dayKey == key }
         guard (try? context.fetch(FetchDescriptor(predicate: predicate)).isEmpty) != false else {
-            isCheckedInToday = true; return
+            isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; return
         }
         context.insert(CheckIn(dayKey: key, ssid: ssid, source: source))
         do {
-            try context.save(); isCheckedInToday = true; _ = try ExportService.export(from: context)
-        } catch { lastError = "保存打卡失败：\(error.localizedDescription)" }
+            try context.save(); isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; _ = try ExportService.export(from: context)
+        } catch { automaticStatus = .warning; statusText = "Automatic check-in needs attention"; lastError = "Check-in failed: \(error.localizedDescription)" }
     }
 }

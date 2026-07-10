@@ -10,6 +10,7 @@ struct DashboardView: View {
     @State private var editingSSID = CheckInService.defaultSSID
     @State private var launchAtLogin = false
     @State private var heatRange: HeatRange = .month
+    @State private var backfillDate = Calendar.current.date(byAdding: .day, value: -1, to: .now) ?? .now
 
     private var quarter: DateInterval { Calendar.current.dateInterval(of: .quarter, for: .now)! }
     private var month: DateInterval { Calendar.current.dateInterval(of: .month, for: .now)! }
@@ -17,39 +18,59 @@ struct DashboardView: View {
     private var quarterCheckins: [CheckIn] { checkins.filter { quarter.contains($0.checkedInAt) } }
     private var workingDays: Int { stride(from: quarter.start, to: quarter.end, by: 86_400).filter { !Calendar.current.isDateInWeekend($0) }.count }
     private var weeklyAverage: Double {
-        let weeks = Set(quarterCheckins.map { Calendar.current.dateInterval(of: .weekOfYear, for: $0.checkedInAt)?.start }).count
-        return weeks == 0 ? 0 : Double(quarterCheckins.count) / Double(weeks)
+        let elapsedWeeks = max(1, Int(ceil(Date.now.timeIntervalSince(quarter.start) / (7 * 86_400))))
+        return Double(quarterCheckins.count) / Double(elapsedWeeks)
     }
+    private var minimumCheckIns: Int { max(1, Int(quarter.duration / (7 * 86_400))) * 2 }
+    private var quarterHistory: [QuarterSummary] { QuarterSummary.all(from: checkins) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HStack { VStack(alignment: .leading) { Text("Office Check-in").font(.largeTitle.bold()).foregroundStyle(OfficeTheme.ink); Text("仅在本机保存") .foregroundStyle(.secondary) }; Spacer(); Button("立即导出 Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary) }
-            HStack(spacing: 14) {
-                MetricCard(title: "Today", value: service.isCheckedInToday ? "✓ 已打卡" : "未打卡")
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("Office Check-in").font(.largeTitle.bold()).foregroundStyle(OfficeTheme.ink)
+                    Text("Local automatic Wi-Fi check-in · retries every 5 minutes").foregroundStyle(.secondary)
+                }
+                Spacer()
+                StatusBadge(status: service.automaticStatus, text: service.statusText)
+                Button("Export Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.primary)
+            }
+            HStack(spacing: 12) {
+                MetricCard(title: "Today", value: service.isCheckedInToday ? "Checked in" : "Waiting", valueColor: service.isCheckedInToday ? .green : .yellow)
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
-                MetricCard(title: "Working Days（当前季度）", value: "\(quarterCheckins.count) / \(workingDays)")
-                MetricCard(title: "Avg / Week", value: String(format: "%.1f", weeklyAverage))
+                MetricCard(title: "Working Days (Quarter)", value: "\(quarterCheckins.count) / \(workingDays)")
+                MetricCard(title: "Minimum Check-ins", value: "\(minimumCheckIns)")
+                MetricCard(title: "Avg / Week", value: String(format: "%.1f", weeklyAverage), valueColor: weeklyAverage <= 2 ? .red : .green)
             }
             GroupBox {
                 calendarOverview.padding(.top, 4)
             } label: {
                 HStack {
-                    Text("Heat Map（按周）")
+                    Text("Check-in Calendar")
                     Spacer()
-                    Picker("范围", selection: $heatRange) {
+                    Picker("Range", selection: $heatRange) {
                         ForEach(HeatRange.allCases) { Text($0.rawValue).tag($0) }
                     }
                     .labelsHidden().pickerStyle(.segmented).frame(width: 180)
                 }
             }
-            GroupBox("设置") { HStack { Text("指定 WiFi"); TextField("SSID", text: $editingSSID).frame(width: 220); Button("保存") { service.saveTargetSSID(editingSSID); storedSSID = editingSSID }; Toggle("登录时启动", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }; Spacer(); Button("立即打卡") { service.manualCheckIn() } }.padding(.vertical, 4) }
+            GroupBox("Automation") { HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { service.saveTargetSSID(editingSSID); storedSSID = editingSSID }; Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }; Spacer(); Button("Check In Now") { service.manualCheckIn() } }.padding(.vertical, 4) }
+            GroupBox("Backfill a Past Date") {
+                HStack { DatePicker("Date", selection: $backfillDate, in: ...Date.now, displayedComponents: .date); Spacer(); Button("Add Check-in") { service.backfill(date: backfillDate) }.buttonStyle(.bordered) }
+                    .padding(.vertical, 4)
+            }
+            DisclosureGroup("Quarter History") {
+                VStack(spacing: 6) {
+                    ForEach(quarterHistory) { summary in QuarterHistoryRow(summary: summary) }
+                }.padding(.top, 6)
+            }
             if let hint = service.wifiHint { Label(hint, systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(OfficeTheme.primary) }
             if let error = service.lastError { Text(error).foregroundStyle(.red) }
             Spacer()
         }
-        .padding(26).frame(minWidth: 820, minHeight: heatRange == .year ? 720 : 470)
+        .padding(26).frame(minWidth: 900, minHeight: heatRange == .year ? 780 : 600)
         .background(OfficeTheme.background)
-        .onAppear { editingSSID = storedSSID; service.start(using: context) }
+        .onAppear { editingSSID = storedSSID; service.start(using: context); launchAtLogin = service.launchAtLoginEnabled }
     }
 
     private func exportAndReveal() {
@@ -83,9 +104,21 @@ struct DashboardView: View {
     }
 }
 
-private enum HeatRange: String, CaseIterable, Identifiable { case month = "本月", quarter = "当前季度", year = "全年"; var id: String { rawValue } }
+private enum HeatRange: String, CaseIterable, Identifiable { case month = "This Month", quarter = "This Quarter", year = "This Year"; var id: String { rawValue } }
 private enum OfficeTheme { static let primary = Color(red: 0.14, green: 0.34, blue: 0.84); static let ink = Color(red: 0.08, green: 0.13, blue: 0.24); static let background = Color(red: 0.96, green: 0.97, blue: 0.99) }
-private struct MetricCard: View { let title: String; let value: String; var body: some View { VStack(alignment: .leading, spacing: 8) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).foregroundStyle(OfficeTheme.ink).lineLimit(1).minimumScaleFactor(0.7) }.frame(maxWidth: .infinity, alignment: .leading).padding().background(.white, in: RoundedRectangle(cornerRadius: 12)).shadow(color: OfficeTheme.ink.opacity(0.06), radius: 8, y: 3) } }
+private struct MetricCard: View { let title: String; let value: String; var valueColor: Color = OfficeTheme.ink; var body: some View { VStack(alignment: .leading, spacing: 8) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.title3.bold()).foregroundStyle(valueColor).lineLimit(1).minimumScaleFactor(0.7) }.frame(maxWidth: .infinity, alignment: .leading).padding().background(.white, in: RoundedRectangle(cornerRadius: 12)).shadow(color: OfficeTheme.ink.opacity(0.06), radius: 8, y: 3) } }
+private struct StatusBadge: View {
+    let status: CheckInService.AutomaticStatus; let text: String
+    private var color: Color { status == .success ? .green : .yellow }
+    var body: some View { Label(text, systemImage: status == .success ? "checkmark.circle.fill" : "exclamationmark.circle.fill").font(.caption.weight(.semibold)).foregroundStyle(color).padding(.horizontal, 10).padding(.vertical, 7).background(color.opacity(0.12), in: Capsule()) }
+}
+private struct QuarterHistoryRow: View {
+    let summary: QuarterSummary
+    var body: some View {
+        HStack { Text(summary.title).fontWeight(.semibold).frame(width: 86, alignment: .leading); Text("\(summary.checkInCount) / \(summary.workingDays) working days"); Spacer(); Text(String(format: "Avg / Week %.1f", summary.averagePerWeek)).foregroundStyle(summary.averagePerWeek <= 2 ? .red : .green); Text("Target \(summary.minimumCheckIns)").foregroundStyle(.secondary) }
+            .font(.caption).padding(8).background(.white, in: RoundedRectangle(cornerRadius: 7))
+    }
+}
 private struct MonthCalendar: View {
     let interval: DateInterval; let dates: Set<String>; let compact: Bool
     private let calendar = Calendar.current
@@ -95,7 +128,7 @@ private struct MonthCalendar: View {
                 .font(compact ? .caption.weight(.semibold) : .headline)
                 .foregroundStyle(OfficeTheme.ink)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 7), spacing: 7) {
-                ForEach(["日", "一", "二", "三", "四", "五", "六"], id: \.self) { Text($0).font(.caption2.weight(.medium)).foregroundStyle(.secondary).frame(maxWidth: .infinity) }
+                ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { Text($0).font(.caption2.weight(.medium)).foregroundStyle(.secondary).frame(maxWidth: .infinity) }
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 7), spacing: 7) {
                 ForEach(Array(slots.enumerated()), id: \.offset) { _, day in

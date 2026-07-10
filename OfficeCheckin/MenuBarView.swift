@@ -7,14 +7,14 @@ struct MenuBarView: View {
     @Environment(\.modelContext) private var context
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(service.isCheckedInToday ? "今天已打卡" : "今天未打卡").font(.headline)
-            Text("Wi‑Fi：\(service.currentWiFi)").foregroundStyle(.secondary)
+            Text(service.isCheckedInToday ? "Checked in today" : "Waiting for automatic check-in").font(.headline)
+            Text("Wi‑Fi: \(service.currentWiFi)").foregroundStyle(.secondary)
             Divider()
-            Button("立即打卡") { service.manualCheckIn() }
-            Button("立即导出 Excel") { do { NSWorkspace.shared.activateFileViewerSelecting([try ExportService.export(from: context)]) } catch { service.report(error) } }
-            Button("刷新 Wi‑Fi") { service.refresh() }
+            Button("Check In Now") { service.manualCheckIn() }
+            Button("Export Excel") { do { NSWorkspace.shared.activateFileViewerSelecting([try ExportService.export(from: context)]) } catch { service.report(error) } }
+            Button("Refresh Wi‑Fi") { service.refresh() }
             Divider()
-            Button("退出 OfficeCheckin") { NSApplication.shared.terminate(nil) }
+            Button("Quit OfficeCheckin") { NSApplication.shared.terminate(nil) }
         }.padding().frame(width: 260)
     }
 }
