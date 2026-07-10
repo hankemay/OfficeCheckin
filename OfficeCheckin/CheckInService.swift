@@ -69,7 +69,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     }
 
     private func wifiName() -> String? {
-        if let interface = CWWiFiClient.shared().interface(), let ssid = try? interface.ssid(), let ssid { return ssid }
+        if let interface = CWWiFiClient.shared().interface(), let ssid = try? interface.ssid() { return ssid }
         // CoreWLAN can return nil until location access is approved. Use the built-in
         // network utility as a second, non-private API source in non-sandboxed builds.
         let ports = command("/usr/sbin/networksetup", ["-listallhardwareports"]).components(separatedBy: .newlines)
