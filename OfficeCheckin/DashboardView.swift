@@ -6,6 +6,7 @@ struct DashboardView: View {
     @EnvironmentObject private var service: CheckInService
     @Environment(\.modelContext) private var context
     @Query(sort: \CheckIn.dayKey) private var checkins: [CheckIn]
+    @Query private var operations: [OperationLog]
     @AppStorage(CheckInService.targetKey) private var storedSSID = CheckInService.defaultSSID
     @State private var editingSSID = CheckInService.defaultSSID
     @State private var launchAtLogin = false
@@ -42,6 +43,13 @@ struct DashboardView: View {
         return nil
     }
     private var quarterHistory: [QuarterSummary] { QuarterSummary.all(from: checkins) }
+    private var operationsByDay: [String: OperationLog] {
+        operations.reduce(into: [:]) { result, operation in
+            let existingDate = result[operation.dayKey]?.performedAt ?? .distantPast
+            if existingDate < operation.performedAt { result[operation.dayKey] = operation }
+        }
+    }
+    private var recentOperations: [OperationLog] { operations.sorted { $0.performedAt > $1.performedAt }.prefix(10).map { $0 } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -64,6 +72,10 @@ struct DashboardView: View {
             }
             GroupBox {
                 calendarOverview.padding(.top, 4)
+                HStack(spacing: 12) {
+                    Label("Check-in", systemImage: "circle.fill").foregroundStyle(.green)
+                    Label("Manual backfill / removal", systemImage: "circle.fill").foregroundStyle(.blue)
+                }.font(.caption).padding(.top, 8)
             } label: {
                 HStack {
                     Text("Check-in Calendar")
@@ -89,6 +101,13 @@ struct DashboardView: View {
                         Button("Add Check-in") { service.backfill(date: backfillDate) }
                         Button("Remove Check-in", role: .destructive) { showingRemoveConfirmation = true }
                     }
+                    if !recentOperations.isEmpty {
+                        Divider()
+                        Text("Recent Operations").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                        ForEach(recentOperations, id: \.persistentModelID) { operation in
+                            OperationRow(operation: operation)
+                        }
+                    }
                 }.padding(.top, 6)
             }
             if let hint = service.wifiHint { Label(hint, systemImage: "wifi.exclamationmark").font(.caption).foregroundStyle(OfficeTheme.primary) }
@@ -112,14 +131,14 @@ struct DashboardView: View {
         let dates = Set(checkins.map(\.dayKey))
         switch heatRange {
         case .month:
-            MonthCalendar(interval: month, dates: dates, compact: false)
+            MonthCalendar(interval: month, dates: dates, operations: operationsByDay, compact: false)
         case .quarter:
             HStack(alignment: .top, spacing: 12) {
-                ForEach(monthIntervals(in: quarter), id: \.start) { MonthCalendar(interval: $0, dates: dates, compact: true) }
+                ForEach(monthIntervals(in: quarter), id: \.start) { MonthCalendar(interval: $0, dates: dates, operations: operationsByDay, compact: true) }
             }
         case .year:
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-                ForEach(monthIntervals(in: year), id: \.start) { MonthCalendar(interval: $0, dates: dates, compact: true) }
+                ForEach(monthIntervals(in: year), id: \.start) { MonthCalendar(interval: $0, dates: dates, operations: operationsByDay, compact: true) }
             }
         }
     }
@@ -149,8 +168,15 @@ private struct QuarterHistoryRow: View {
             .font(.caption).padding(8).background(.white, in: RoundedRectangle(cornerRadius: 7))
     }
 }
+private struct OperationRow: View {
+    let operation: OperationLog
+    var body: some View {
+        HStack { Text(operation.action).fontWeight(.medium); Spacer(); Text(operation.dayKey); Text(operation.performedAt.formatted(date: .abbreviated, time: .shortened)).foregroundStyle(.secondary) }
+            .font(.caption).padding(.vertical, 3)
+    }
+}
 private struct MonthCalendar: View {
-    let interval: DateInterval; let dates: Set<String>; let compact: Bool
+    let interval: DateInterval; let dates: Set<String>; let operations: [String: OperationLog]; let compact: Bool
     private let calendar = Calendar.current
     var body: some View {
         VStack(spacing: 7) {
@@ -163,9 +189,15 @@ private struct MonthCalendar: View {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 7), count: 7), spacing: 7) {
                 ForEach(Array(slots.enumerated()), id: \.offset) { _, day in
                     if let day {
-                        let checked = dates.contains(day.formatted(.iso8601.year().month().day()))
-                        VStack(spacing: compact ? 1 : 3) { Text(day.formatted(.dateTime.day())).font(compact ? .caption2 : .caption); Circle().fill(checked ? .green : .gray.opacity(0.22)).frame(width: compact ? 5 : 6, height: compact ? 5 : 6) }
-                            .frame(maxWidth: .infinity, minHeight: compact ? 25 : 38).background(checked ? Color.green.opacity(0.12) : .white, in: RoundedRectangle(cornerRadius: compact ? 4 : 6))
+                        let key = day.formatted(.iso8601.year().month().day())
+                        let checked = dates.contains(key), operation = operations[key]
+                        let operationLabel = operation?.action.hasPrefix("Added") == true ? "B" : operation == nil ? "" : "R"
+                        let color: Color = operation == nil ? (checked ? .green : .gray.opacity(0.22)) : .blue
+                        VStack(spacing: compact ? 1 : 3) {
+                            HStack(spacing: 2) { Text(day.formatted(.dateTime.day())).font(compact ? .caption2 : .caption); if !operationLabel.isEmpty { Text(operationLabel).font(.system(size: compact ? 7 : 9, weight: .bold)).foregroundStyle(.blue) } }
+                            Circle().fill(color).frame(width: compact ? 5 : 6, height: compact ? 5 : 6)
+                        }
+                            .frame(maxWidth: .infinity, minHeight: compact ? 25 : 38).background(operation == nil ? (checked ? Color.green.opacity(0.12) : .white) : Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: compact ? 4 : 6))
                     } else { Color.clear.frame(maxWidth: .infinity, minHeight: compact ? 25 : 38) }
                 }
             }
