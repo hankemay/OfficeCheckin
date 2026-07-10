@@ -19,12 +19,14 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     private var context: ModelContext?
     private let locationManager = CLLocationManager()
     static let targetKey = "targetSSID"
+    static let autoExportKey = "autoExportCheckInStats"
     static let defaultSSID = "verizion_QV96NR"
 
     var targetSSID: String {
         UserDefaults.standard.string(forKey: Self.targetKey) ?? Self.defaultSSID
     }
     var launchAtLoginEnabled: Bool { SMAppService.mainApp.status == .enabled }
+    private var autoExportEnabled: Bool { (UserDefaults.standard.object(forKey: Self.autoExportKey) as? Bool) ?? true }
 
     override init() {
         super.init()
@@ -207,13 +209,18 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
             existing.ssid = ssid
             existing.source = source
             do {
-                try context.save(); isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; _ = try ExportService.export(from: context); scheduleNextDay()
+                try context.save(); isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; try exportAfterSuccessfulCheckIn(context); scheduleNextDay()
             } catch { automaticStatus = .warning; statusText = "Automatic check-in needs attention"; lastError = "Check-in failed: \(error.localizedDescription)" }
             return
         }
         context.insert(CheckIn(dayKey: key, ssid: ssid, source: source))
         do {
-            try context.save(); isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; _ = try ExportService.export(from: context); scheduleNextDay()
+            try context.save(); isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; try exportAfterSuccessfulCheckIn(context); scheduleNextDay()
         } catch { automaticStatus = .warning; statusText = "Automatic check-in needs attention"; lastError = "Check-in failed: \(error.localizedDescription)" }
+    }
+
+    private func exportAfterSuccessfulCheckIn(_ context: ModelContext) throws {
+        guard autoExportEnabled else { return }
+        _ = try ExportService.export(from: context)
     }
 }

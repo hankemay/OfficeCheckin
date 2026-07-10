@@ -9,6 +9,7 @@ struct DashboardView: View {
     @Query private var operations: [OperationLog]
     @AppStorage(CheckInService.targetKey) private var storedSSID = CheckInService.defaultSSID
     @AppStorage("displayName") private var displayName = NSUserName()
+    @AppStorage(CheckInService.autoExportKey) private var autoExportEnabled = true
     @State private var editingSSID = CheckInService.defaultSSID
     @State private var launchAtLogin = false
     @State private var heatRange: HeatRange = .month
@@ -17,6 +18,8 @@ struct DashboardView: View {
     @State private var showingTargetChangeConfirmation = false
     @State private var pendingTargetSSID = ""
     @State private var debuggingInfoExpanded = false
+    @State private var isEditingName = false
+    @State private var nameDraft = ""
 
     private var quarter: DateInterval { Calendar.current.dateInterval(of: .quarter, for: .now)! }
     private var month: DateInterval { Calendar.current.dateInterval(of: .month, for: .now)! }
@@ -66,7 +69,20 @@ struct DashboardView: View {
                 VStack(alignment: .leading) {
                     Text("Office Check-in").font(.largeTitle.bold()).foregroundStyle(OfficeTheme.ink)
                     Text("Local automatic Wi-Fi check-in · retries every 5 minutes").foregroundStyle(.secondary)
-                    HStack(spacing: 8) { Text("Name").font(.caption).foregroundStyle(.secondary); TextField("Name", text: $displayName).textFieldStyle(.roundedBorder).frame(width: 190) }
+                    HStack(spacing: 10) {
+                        Text("Name").font(.caption).foregroundStyle(.secondary)
+                        if isEditingName {
+                            TextField("Name", text: $nameDraft).textFieldStyle(.roundedBorder).frame(width: 160)
+                            Button("Save") { saveName() }
+                            Button("Cancel") { isEditingName = false }
+                        } else {
+                            Text(displayName).font(.subheadline)
+                            Button("Edit") { nameDraft = displayName; isEditingName = true }
+                        }
+                        Divider().frame(height: 18)
+                        Toggle("Launch at Login", isOn: $launchAtLogin).toggleStyle(.checkbox).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }
+                        Toggle("Auto-export stats to Excel", isOn: $autoExportEnabled).toggleStyle(.checkbox)
+                    }
                 }
                 Spacer()
                 StatusBadge(status: service.automaticStatus, text: service.statusText)
@@ -79,15 +95,6 @@ struct DashboardView: View {
                 MetricCard(title: "Minimum Check-ins", value: "\(minimumCheckIns)")
                 MetricCard(title: "Expected Check-in Days Remaining", value: "\(expectedDaysLeft)", valueColor: expectedDaysColor, note: expectedDaysNote)
                 MetricCard(title: "Avg / Week", value: String(format: "%.1f", weeklyAverage), valueColor: weeklyAverage <= 2 ? .red : .green)
-            }
-            GroupBox("Automation") {
-                HStack {
-                    Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { service.setLaunchAtLogin($0) }
-                    Spacer()
-                }.padding(.vertical, 4)
-                DisclosureGroup("Target WiFi Settings for Check-in") {
-                    HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { saveTargetSSID() } }.padding(.top, 8)
-                }
             }
             GroupBox {
                 calendarOverview.padding(.top, 4)
@@ -105,6 +112,9 @@ struct DashboardView: View {
                     .labelsHidden().pickerStyle(.segmented).frame(width: 180)
                 }
             }
+            DisclosureGroup("Target WiFi Settings for Check-in") {
+                HStack { Text("Target WiFi"); TextField("SSID", text: $editingSSID).frame(width: 210); Button("Save") { saveTargetSSID() } }.padding(.top, 8)
+            }
             DisclosureGroup("Quarter History") {
                 VStack(spacing: 6) {
                     ForEach(quarterHistory) { summary in QuarterHistoryRow(summary: summary) }
@@ -119,6 +129,7 @@ struct DashboardView: View {
                         Button("Add Check-in") { service.backfill(date: backfillDate) }
                         Button("Remove Check-in", role: .destructive) { showingRemoveConfirmation = true }
                     }
+                    Button("Export Check-in Status to Excel") { exportAndReveal() }
                     if !recentOperations.isEmpty {
                         Divider()
                         Text("Recent Operations").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -150,7 +161,7 @@ struct DashboardView: View {
             Button("Change Target WiFi", role: .destructive) { service.saveTargetSSID(pendingTargetSSID); storedSSID = pendingTargetSSID; editingSSID = pendingTargetSSID }
             Button("Cancel", role: .cancel) { editingSSID = storedSSID }
         } message: { Text("Changing the target WiFi will clear today's existing check-in result and immediately check again. Please proceed carefully.") }
-        .onAppear { editingSSID = storedSSID; launchAtLogin = service.launchAtLoginEnabled; debuggingInfoExpanded = service.currentWiFi == "Not connected"; service.refresh() }
+        .onAppear { editingSSID = storedSSID; launchAtLogin = service.launchAtLoginEnabled; nameDraft = displayName; debuggingInfoExpanded = service.currentWiFi == "Not connected"; service.refresh() }
         .onChange(of: service.currentWiFi) { value in if value == "Not connected" { debuggingInfoExpanded = true } }
     }
 
@@ -166,6 +177,12 @@ struct DashboardView: View {
         }
         pendingTargetSSID = proposed
         showingTargetChangeConfirmation = true
+    }
+
+    private func saveName() {
+        let value = nameDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !value.isEmpty { displayName = value }
+        isEditingName = false
     }
 
     @ViewBuilder private var calendarOverview: some View {
