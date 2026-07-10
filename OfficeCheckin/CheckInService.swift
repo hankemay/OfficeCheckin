@@ -55,14 +55,13 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         isCheckedInToday = existing != nil
         // A manual/backfill result is provisional: a later automatic success replaces it.
         if existing?.source == "wifi" {
+            updateCurrentWiFi()
             automaticStatus = .success
             statusText = "Checked in today"
             scheduleNextDay()
             return
         }
-        let ssid = wifiName()
-        currentWiFi = ssid ?? "Not connected"
-        wifiHint = ssid == nil ? "Allow Location access and keep App Sandbox disabled to read the Wi-Fi name." : nil
+        let ssid = updateCurrentWiFi()
         guard let ssid else { automaticStatus = .waiting; statusText = "Waiting for \(targetSSID)"; return }
         guard ssidMatches(ssid, targetSSID) else {
             automaticStatus = .waiting
@@ -147,6 +146,14 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         // CoreWLAN remains a useful fallback after location access is approved.
         if let interface = CWWiFiClient.shared().interface(), let ssid = try? interface.ssid() { return ssid }
         return nil
+    }
+
+    @discardableResult
+    private func updateCurrentWiFi() -> String? {
+        let ssid = wifiName()
+        currentWiFi = ssid ?? "Not connected"
+        wifiHint = ssid == nil ? "Allow Location access and keep App Sandbox disabled to read the Wi-Fi name." : nil
+        return ssid
     }
 
     private func ssidMatches(_ actual: String, _ target: String) -> Bool {
