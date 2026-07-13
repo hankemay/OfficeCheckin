@@ -4,7 +4,7 @@ Native macOS Wi-Fi automatic check-in app. It uses SwiftUI, SwiftData, CoreWLAN,
 
 ## Highlights
 
-- Target Wi-Fi: `verizion_QV96NR` (editable inside the app)
+- Target Wi-Fi: `XXX` (editable inside the app)
 - Checks every five minutes; automatically checks in on the first target Wi-Fi connection each day
 - Local SwiftData database
 - Native dashboard with Today, Current Wi-Fi, quarterly workdays, Avg / Week, and heat maps
