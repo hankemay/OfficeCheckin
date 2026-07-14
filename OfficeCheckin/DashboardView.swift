@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct DashboardView: View {
     @EnvironmentObject private var service: CheckInService
@@ -11,7 +12,7 @@ struct DashboardView: View {
     @AppStorage("displayName") private var displayName = NSUserName()
     @AppStorage(CheckInService.autoExportKey) private var autoExportEnabled = true
     @State private var editingSSID = CheckInService.defaultSSID
-    @State private var launchAtLogin = false
+    @State private var launchAtLogin = true
     @State private var heatRange: HeatRange = .month
     @State private var backfillDate = Date.now
     @State private var showingRemoveConfirmation = false
@@ -20,6 +21,7 @@ struct DashboardView: View {
     @State private var debuggingInfoExpanded = false
     @State private var isEditingName = false
     @State private var nameDraft = ""
+    @State private var showingImportPicker = false
 
     private var quarter: DateInterval { Calendar.current.dateInterval(of: .quarter, for: .now)! }
     private var month: DateInterval { Calendar.current.dateInterval(of: .month, for: .now)! }
@@ -157,6 +159,10 @@ struct DashboardView: View {
                         Button("Remove Check-in") { showingRemoveConfirmation = true }.buttonStyle(.borderedProminent).tint(OfficeTheme.action)
                     }
                     Button("Export Check-in Status to Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.action)
+                    Button("Import Check-ins from Excel") { showingImportPicker = true }.buttonStyle(.borderedProminent).tint(OfficeTheme.action)
+                    Text("Imports missing weekday records from an OfficeCheckin Check-ins workbook.").font(.caption).foregroundStyle(.secondary)
+                    if let summary = service.lastImportSummary { Text(summary).font(.caption).foregroundStyle(OfficeTheme.muted) }
+                    if let error = service.lastError, error.hasPrefix("Import failed") { Text(error).font(.caption).foregroundStyle(.red) }
                     if !recentOperations.isEmpty {
                         Divider()
                         Text("Recent Operations").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
@@ -189,6 +195,14 @@ struct DashboardView: View {
             Button("Cancel", role: .cancel) { editingSSID = storedSSID }
         } message: { Text("Changing the target WiFi will clear today's existing check-in result and immediately check again. Please proceed carefully.") }
         .onAppear { editingSSID = storedSSID; launchAtLogin = service.launchAtLoginEnabled; nameDraft = displayName; debuggingInfoExpanded = false; service.refresh() }
+        .fileImporter(isPresented: $showingImportPicker, allowedContentTypes: [UTType(filenameExtension: "xlsx") ?? .data], allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                if let url = urls.first { service.importCheckIns(from: url) }
+            case .failure(let error):
+                service.report(error)
+            }
+        }
     }
 
     private func exportAndReveal() {
