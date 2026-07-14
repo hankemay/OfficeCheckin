@@ -13,6 +13,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     @Published private(set) var matchedAt: Date?
     @Published private(set) var wifiHint: String?
     @Published private(set) var isCheckedInToday = false
+    @Published private(set) var isWorkingDayToday = true
     @Published private(set) var automaticStatus: AutomaticStatus = .waiting
     @Published private(set) var statusText = "Waiting for automatic check-in"
     @Published var lastError: String?
@@ -47,6 +48,17 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     }
 
     func refresh() {
+        isWorkingDayToday = isWorkingDay(.now)
+        guard isWorkingDayToday else {
+            automaticResumeAfter = nil
+            isCheckedInToday = false
+            matchedWiFi = nil
+            matchedAt = nil
+            automaticStatus = .success
+            statusText = "Weekend — check-in not required"
+            scheduleNextWorkingDay()
+            return
+        }
         if let automaticResumeAfter, automaticResumeAfter > .now {
             automaticStatus = .waiting
             statusText = "Automatic check-in resumes in \(max(1, Int(automaticResumeAfter.timeIntervalSinceNow.rounded(.up)))) seconds"
@@ -62,7 +74,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
             updateCurrentWiFi()
             automaticStatus = .success
             statusText = "Checked in today"
-            scheduleNextDay()
+            scheduleNextWorkingDay()
             return
         }
         let ssid = updateCurrentWiFi()
@@ -82,6 +94,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
 
     func backfill(date: Date) {
         guard date <= .now else { lastError = "A future date cannot be checked in."; return }
+        guard isWorkingDay(date) else { lastError = "Check-ins are only available on weekdays."; return }
         guard let context else { lastError = "The local database is unavailable."; return }
         let key = dayKey(for: date), predicate = #Predicate<CheckIn> { $0.dayKey == key }
         guard (try? context.fetch(FetchDescriptor(predicate: predicate)).isEmpty) != false else { lastError = "This date already has a check-in."; return }
@@ -177,6 +190,10 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         date.formatted(.iso8601.year().month().day())
     }
 
+    private func isWorkingDay(_ date: Date) -> Bool {
+        !Calendar.current.isDateInWeekend(date)
+    }
+
     private func updateTodayStatus() {
         isCheckedInToday = todayCheckIn() != nil
     }
@@ -191,6 +208,7 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     private func beginPolling() {
         timer?.invalidate(); timer = nil
         refresh()
+        guard isWorkingDay(.now) else { return }
         guard todayCheckIn()?.source != "wifi" else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 5 * 60, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.refresh() }
@@ -207,11 +225,15 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
         }
     }
 
-    /// Stop Wi-Fi polling once today's record exists, then resume automatically at the next local day.
-    private func scheduleNextDay() {
+    /// Stop Wi-Fi polling once today's record exists, then resume on the next weekday.
+    private func scheduleNextWorkingDay() {
         timer?.invalidate()
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now.addingTimeInterval(24 * 60 * 60)
-        timer = Timer.scheduledTimer(withTimeInterval: max(1, tomorrow.timeIntervalSinceNow), repeats: false) { [weak self] _ in
+        let calendar = Calendar.current
+        var next = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: .now)) ?? .now.addingTimeInterval(24 * 60 * 60)
+        while !isWorkingDay(next) {
+            next = calendar.date(byAdding: .day, value: 1, to: next) ?? next.addingTimeInterval(24 * 60 * 60)
+        }
+        timer = Timer.scheduledTimer(withTimeInterval: max(1, next.timeIntervalSinceNow), repeats: false) { [weak self] _ in
             Task { @MainActor in self?.beginPolling() }
         }
     }
@@ -232,6 +254,11 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
     }
 
     private func checkIn(ssid: String, source: String) {
+        guard isWorkingDay(.now) else {
+            automaticStatus = .success
+            statusText = "Weekend — check-in not required"
+            return
+        }
         guard let context else { return }
         let key = dayKey()
         let predicate = #Predicate<CheckIn> { $0.dayKey == key }
@@ -240,20 +267,20 @@ final class CheckInService: NSObject, ObservableObject, CLLocationManagerDelegat
             guard existing.source != "wifi" else {
                 matchedWiFi = existing.ssid
                 matchedAt = existing.checkedInAt
-                isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; scheduleNextDay(); return
+                isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; scheduleNextWorkingDay(); return
             }
             existing.checkedInAt = .now
             existing.ssid = ssid
             existing.source = source
             do {
-                try context.save(); matchedWiFi = ssid; matchedAt = existing.checkedInAt; isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; try exportAfterSuccessfulCheckIn(context); scheduleNextDay()
+                try context.save(); matchedWiFi = ssid; matchedAt = existing.checkedInAt; isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; try exportAfterSuccessfulCheckIn(context); scheduleNextWorkingDay()
             } catch { automaticStatus = .warning; statusText = "Automatic check-in needs attention"; lastError = "Check-in failed: \(error.localizedDescription)" }
             return
         }
         let newCheckIn = CheckIn(dayKey: key, ssid: ssid, source: source)
         context.insert(newCheckIn)
         do {
-            try context.save(); matchedWiFi = ssid; matchedAt = newCheckIn.checkedInAt; isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; try exportAfterSuccessfulCheckIn(context); scheduleNextDay()
+            try context.save(); matchedWiFi = ssid; matchedAt = newCheckIn.checkedInAt; isCheckedInToday = true; automaticStatus = .success; statusText = "Checked in today"; try exportAfterSuccessfulCheckIn(context); scheduleNextWorkingDay()
         } catch { automaticStatus = .warning; statusText = "Automatic check-in needs attention"; lastError = "Check-in failed: \(error.localizedDescription)" }
     }
 

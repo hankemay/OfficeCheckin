@@ -24,8 +24,13 @@ struct DashboardView: View {
     private var quarter: DateInterval { Calendar.current.dateInterval(of: .quarter, for: .now)! }
     private var month: DateInterval { Calendar.current.dateInterval(of: .month, for: .now)! }
     private var year: DateInterval { Calendar.current.dateInterval(of: .year, for: .now)! }
-    private var quarterCheckins: [CheckIn] { checkins.filter { quarter.contains($0.checkedInAt) } }
+    private var quarterCheckins: [CheckIn] { checkins.filter { quarter.contains($0.checkedInAt) && !Calendar.current.isDateInWeekend($0.checkedInAt) } }
     private var workingDays: Int { stride(from: quarter.start, to: quarter.end, by: 86_400).filter { !Calendar.current.isDateInWeekend($0) }.count }
+    private var weeklyAverage: Double {
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
+        let elapsedWorkingDays = stride(from: quarter.start, to: min(end, quarter.end), by: 86_400).filter { !Calendar.current.isDateInWeekend($0) }.count
+        return elapsedWorkingDays == 0 ? 0 : Double(quarterCheckins.count) / (Double(elapsedWorkingDays) / 5)
+    }
     private var minimumCheckIns: Int { max(1, Int(quarter.duration / (7 * 86_400))) * 2 }
     /// A progress metric should never show a negative number once the target is met.
     private var checkInDaysRemaining: Int { max(0, minimumCheckIns - quarterCheckins.count) }
@@ -64,7 +69,7 @@ struct DashboardView: View {
     }
     private var calendarStates: [String: CalendarDayState] {
         var events: [(date: Date, dayKey: String, state: CalendarDayState)] = []
-        for checkIn in checkins {
+        for checkIn in checkins where !Calendar.current.isDateInWeekend(checkIn.checkedInAt) {
             events.append((checkIn.checkedInAt, checkIn.dayKey, checkIn.source == "wifi" ? .checkedIn : .backfilled))
         }
         for operation in operations {
@@ -74,6 +79,7 @@ struct DashboardView: View {
         return events.sorted { $0.date < $1.date }.reduce(into: [:]) { result, event in result[event.dayKey] = event.state }
     }
     private var recentOperations: [OperationLog] { operations.sorted { $0.performedAt > $1.performedAt }.prefix(10).map { $0 } }
+    private var canBackfillSelectedDate: Bool { !Calendar.current.isDateInWeekend(backfillDate) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -100,16 +106,17 @@ struct DashboardView: View {
                 StatusBadge(status: service.automaticStatus, text: service.statusText)
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
-                MetricCard(title: todayMetricTitle, value: service.isCheckedInToday ? "Checked in" : "Not checked in today", valueColor: service.isCheckedInToday ? .green : .yellow, note: service.isCheckedInToday ? matchedWiFiNote : nil, noteColor: OfficeTheme.muted)
+                MetricCard(title: todayMetricTitle, value: service.isWorkingDayToday ? (service.isCheckedInToday ? "Checked in" : "Not checked in today") : "No check-in required", valueColor: service.isWorkingDayToday ? (service.isCheckedInToday ? .green : .yellow) : OfficeTheme.muted, note: service.isCheckedInToday ? matchedWiFiNote : nil, noteColor: OfficeTheme.muted)
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
             }
             GroupBox {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
                     MetricCard(title: "Checked-in Days", value: "\(quarterCheckins.count)")
                     MetricCard(title: "Check-in Days Remaining", value: "\(checkInDaysRemaining)", valueColor: expectedDaysColor, note: expectedDaysNote)
                     MetricCard(title: "Minimum Required Check-ins", value: "\(minimumCheckIns)")
                     MetricCard(title: "Quarter Workdays", value: "\(workingDays)")
                     MetricCard(title: "Workdays Remaining", value: "\(remainingWorkingDays)", note: "Includes today", noteColor: OfficeTheme.muted)
+                    MetricCard(title: "Avg / Week", value: String(format: "%.1f", weeklyAverage), valueColor: weeklyAverage <= 2 ? .red : .green)
                 }
                 .padding(.top, 4)
             } label: {
@@ -144,8 +151,9 @@ struct DashboardView: View {
                     Text("Manual changes are recorded in OfficeCheckin_Operations_Latest.xlsx.").font(.caption).foregroundStyle(.secondary)
                     HStack {
                         DatePicker("Past date", selection: $backfillDate, in: ...Date.now, displayedComponents: .date)
+                        if !canBackfillSelectedDate { Text("Weekdays only").font(.caption).foregroundStyle(.secondary) }
                         Spacer()
-                        Button("Add Check-in") { service.backfill(date: backfillDate) }.buttonStyle(.borderedProminent).tint(OfficeTheme.action)
+                        Button("Add Check-in") { service.backfill(date: backfillDate) }.buttonStyle(.borderedProminent).tint(OfficeTheme.action).disabled(!canBackfillSelectedDate)
                         Button("Remove Check-in") { showingRemoveConfirmation = true }.buttonStyle(.borderedProminent).tint(OfficeTheme.action)
                     }
                     Button("Export Check-in Status to Excel") { exportAndReveal() }.buttonStyle(.borderedProminent).tint(OfficeTheme.action)

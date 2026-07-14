@@ -21,7 +21,7 @@ enum ExportService {
         if let context { modelContext = context }
         else if let container = try? ModelContainer(for: CheckIn.self, OperationLog.self) { modelContext = ModelContext(container) }
         else { throw ExportError.databaseUnavailable }
-        let data = try modelContext.fetch(FetchDescriptor<CheckIn>(sortBy: [SortDescriptor(\.dayKey)]))
+        let data = try modelContext.fetch(FetchDescriptor<CheckIn>(sortBy: [SortDescriptor(\.dayKey)])).filter { !Calendar.current.isDateInWeekend($0.checkedInAt) }
         let employee = employeeName.xml
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let latest = directory.appending(path: "OfficeCheckin_Latest.xlsx")
