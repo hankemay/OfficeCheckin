@@ -26,27 +26,23 @@ struct DashboardView: View {
     private var year: DateInterval { Calendar.current.dateInterval(of: .year, for: .now)! }
     private var quarterCheckins: [CheckIn] { checkins.filter { quarter.contains($0.checkedInAt) } }
     private var workingDays: Int { stride(from: quarter.start, to: quarter.end, by: 86_400).filter { !Calendar.current.isDateInWeekend($0) }.count }
-    private var weeklyAverage: Double {
-        let end = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: .now)) ?? .now
-        let elapsedWorkingDays = stride(from: quarter.start, to: min(end, quarter.end), by: 86_400).filter { !Calendar.current.isDateInWeekend($0) }.count
-        return elapsedWorkingDays == 0 ? 0 : Double(quarterCheckins.count) / (Double(elapsedWorkingDays) / 5)
-    }
     private var minimumCheckIns: Int { max(1, Int(quarter.duration / (7 * 86_400))) * 2 }
-    private var expectedDaysLeft: Int { minimumCheckIns - quarterCheckins.count }
+    /// A progress metric should never show a negative number once the target is met.
+    private var checkInDaysRemaining: Int { max(0, minimumCheckIns - quarterCheckins.count) }
     private var remainingWorkingDays: Int {
         let today = Calendar.current.startOfDay(for: .now)
         return stride(from: today, to: quarter.end, by: 86_400).filter { !Calendar.current.isDateInWeekend($0) }.count
     }
     private var expectedDaysColor: Color {
-        if expectedDaysLeft <= 0 { return .green }
-        if expectedDaysLeft > remainingWorkingDays { return .red }
-        if expectedDaysLeft > remainingWorkingDays / 2 { return .yellow }
+        if checkInDaysRemaining == 0 { return .green }
+        if checkInDaysRemaining > remainingWorkingDays { return .red }
+        if checkInDaysRemaining > remainingWorkingDays / 2 { return .yellow }
         return OfficeTheme.ink
     }
     private var expectedDaysNote: String? {
-        if expectedDaysLeft <= 0 { return "Quarter target reached" }
-        if expectedDaysLeft > remainingWorkingDays { return "Required office attendance cannot be met" }
-        if expectedDaysLeft > remainingWorkingDays / 2 { return "Increase office days to meet the target" }
+        if checkInDaysRemaining == 0 { return "Quarter target reached" }
+        if checkInDaysRemaining > remainingWorkingDays { return "Required office attendance cannot be met" }
+        if checkInDaysRemaining > remainingWorkingDays / 2 { return "Increase office days to meet the target" }
         return nil
     }
     private var quarterHistory: [QuarterSummary] { QuarterSummary.all(from: checkins) }
@@ -54,11 +50,11 @@ struct DashboardView: View {
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX"); formatter.dateFormat = "MM/dd/yyyy, EEEE"
         return "Today (\(formatter.string(from: .now)))"
     }
-    private var quarterLabel: String {
+    private var quarterProgressLabel: String {
         let calendar = Calendar.current
         let year = calendar.component(.year, from: quarter.start)
         let number = (calendar.component(.month, from: quarter.start) - 1) / 3 + 1
-        return "Workdays (\(year)Q\(number))"
+        return "Quarter Progress · \(year) Q\(number)"
     }
     private var matchedWiFiNote: String? {
         guard let ssid = service.matchedWiFi else { return nil }
@@ -103,13 +99,21 @@ struct DashboardView: View {
                 Spacer()
                 StatusBadge(status: service.automaticStatus, text: service.statusText)
             }
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
                 MetricCard(title: todayMetricTitle, value: service.isCheckedInToday ? "Checked in" : "Not checked in today", valueColor: service.isCheckedInToday ? .green : .yellow, note: service.isCheckedInToday ? matchedWiFiNote : nil, noteColor: OfficeTheme.muted)
                 MetricCard(title: "Current WiFi", value: service.currentWiFi)
-                MetricCard(title: quarterLabel, value: "\(quarterCheckins.count) / \(workingDays)")
-                MetricCard(title: "Minimum Check-ins", value: "\(minimumCheckIns)")
-                MetricCard(title: "Expected Check-in Days Remaining", value: "\(expectedDaysLeft)", valueColor: expectedDaysColor, note: expectedDaysNote)
-                MetricCard(title: "Avg / Week", value: String(format: "%.1f", weeklyAverage), valueColor: weeklyAverage <= 2 ? .red : .green)
+            }
+            GroupBox {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
+                    MetricCard(title: "Checked-in Days", value: "\(quarterCheckins.count)")
+                    MetricCard(title: "Check-in Days Remaining", value: "\(checkInDaysRemaining)", valueColor: expectedDaysColor, note: expectedDaysNote)
+                    MetricCard(title: "Minimum Required Check-ins", value: "\(minimumCheckIns)")
+                    MetricCard(title: "Quarter Workdays", value: "\(workingDays)")
+                    MetricCard(title: "Workdays Remaining", value: "\(remainingWorkingDays)", note: "Includes today", noteColor: OfficeTheme.muted)
+                }
+                .padding(.top, 4)
+            } label: {
+                Text(quarterProgressLabel)
             }
             GroupBox {
                 calendarOverview.padding(.top, 4)
